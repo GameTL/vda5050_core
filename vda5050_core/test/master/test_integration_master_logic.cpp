@@ -29,23 +29,32 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 
-#include "vda5050_core/types/instant_actions.hpp"
-#include "vda5050_core/types/order.hpp"
-
+#include "test_fixture_communication_mqtt.hpp"
 #include "vda5050_core/master/master.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 
-using vda5050_core::types::InstantActions;
-using vda5050_core::types::Order;
+using vda5050_core::master::test::mqtt::constants::is_broker_available;
+using vda5050_core::master::test::mqtt::constants::MQTT_BROKER;
 
-using vda5050_core::master::VDA5050Master;
+namespace vda5050_core::master::test {
+
+// =============================================================================
+// Test Fixture
+// =============================================================================
 
 class MasterLogicTestFixture : public ::testing::Test
 {
 protected:
   void SetUp() override
   {
+    if (!is_broker_available())
+    {
+      GTEST_SKIP() << "MQTT broker at " << MQTT_BROKER
+                   << " is not available. Skipping test.";
+    }
+
     manufacturer_ = "TestManufacturer";
     serial_number_ = "SN001";
     agv_id_ = manufacturer_ + "/" + serial_number_;
@@ -53,23 +62,22 @@ protected:
 
   std::shared_ptr<VDA5050Master> create_master()
   {
-    std::string broker = "tcp://localhost:1883";
     auto client = vda5050_core::transport::create_default_client_shared(
-      broker, "master_logic_test");
+      MQTT_BROKER, "master_logic_test_" + std::to_string(test_id_++));
     return std::make_shared<VDA5050Master>(client);
   }
 
-  Order create_test_order(const std::string& order_id)
+  vda5050_core::types::Order create_test_order(const std::string& order_id)
   {
-    Order order;
+    vda5050_core::types::Order order;
     order.order_id = order_id;
     order.order_update_id = 0;
     return order;
   }
 
-  InstantActions create_test_instant_actions(uint32_t id)
+  vda5050_core::types::InstantActions create_test_instant_actions(uint32_t id)
   {
-    InstantActions actions;
+    vda5050_core::types::InstantActions actions;
     actions.header.header_id = id;
     return actions;
   }
@@ -77,7 +85,14 @@ protected:
   std::string manufacturer_;
   std::string serial_number_;
   std::string agv_id_;
+  static int test_id_;
 };
+
+int MasterLogicTestFixture::test_id_ = 0;
+
+// =============================================================================
+// Basic Onboarding Tests
+// =============================================================================
 
 TEST_F(MasterLogicTestFixture, OnboardAGVCreatesInstance)
 {
@@ -175,6 +190,10 @@ TEST_F(MasterLogicTestFixture, OffboardNonExistentAGVIsIgnored)
   master->disconnect();
 }
 
+// =============================================================================
+// Get AGV Tests
+// =============================================================================
+
 TEST_F(MasterLogicTestFixture, GetAGVReturnsNullptrForNonOnboardedAGV)
 {
   auto master = create_master();
@@ -247,6 +266,10 @@ TEST_F(MasterLogicTestFixture, ReOnboardingAfterOffboardingWorks)
 
   master->disconnect();
 }
+
+// =============================================================================
+// Queue Policy Tests
+// =============================================================================
 
 TEST_F(MasterLogicTestFixture, AGVQueuesOrders)
 {
@@ -351,6 +374,10 @@ TEST_F(MasterLogicTestFixture, OnboardingWithCustomQueueSettings)
   master->disconnect();
 }
 
+// =============================================================================
+// Connection Management Tests
+// =============================================================================
+
 TEST_F(MasterLogicTestFixture, MasterConnectIsIdempotent)
 {
   auto master = create_master();
@@ -391,6 +418,10 @@ TEST_F(MasterLogicTestFixture, AGVsRemainsOnboardedAfterMasterDisconnect)
   // AGV should still be onboarded even if master is disconnected
   EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
 }
+
+// =============================================================================
+// Graceful Shutdown Tests
+// =============================================================================
 
 TEST_F(MasterLogicTestFixture, DestructorCompletesWithPendingMessages)
 {
@@ -446,3 +477,5 @@ TEST_F(MasterLogicTestFixture, OffboardWithPendingMessages)
 
   master->disconnect();
 }
+
+}  // namespace vda5050_core::master::test

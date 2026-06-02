@@ -164,6 +164,8 @@ target_link_libraries(vda5050_master
     ${PROJECT_NAME}::json_utils
     ${PROJECT_NAME}::transport
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::errors
 )
 target_include_directories(vda5050_master
   PUBLIC
@@ -230,24 +232,32 @@ if(BUILD_EXAMPLES)
   add_executable(custom_base examples/custom_base.cpp)
   target_link_libraries(custom_base PUBLIC
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::errors
     ${PROJECT_NAME}::logger
   )
 
   add_executable(provider_example examples/provider_example.cpp)
   target_link_libraries(provider_example PUBLIC
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::errors
     ${PROJECT_NAME}::logger
   )
 
   add_executable(engine_example examples/engine_example.cpp)
   target_link_libraries(engine_example PUBLIC
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::errors
     ${PROJECT_NAME}::logger
   )
 
   add_executable(handler_integration examples/handler_integration.cpp)
   target_link_libraries(handler_integration PUBLIC
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::errors
     ${PROJECT_NAME}::logger
   )
 
@@ -313,9 +323,49 @@ if(BUILD_TESTING)
     test/master/test_integration_master_logic.cpp
     test/master/test_integration_master_mqtt.cpp
     test/master/test_integration_master_teardown.cpp
-    test/master/test_unit_agv.cpp
+    test/master/test_integration_master_assign_order.cpp
+    test/master/test_integration_master_assign_instant_actions.cpp
+    test/master/test_integration_master_mode_handling.cpp
+    test/master/test_integration_master_state_timeout.cpp
+    test/master/test_integration_master_broker_status.cpp
+    test/master/test_master_onboard_batch.cpp
   )
   target_link_libraries(test_master vda5050_core::master)
+
+  ament_add_gmock(test_master_agv
+    test/master/test_unit_agv_connection_state.cpp
+    test/master/test_unit_agv_operational_state.cpp
+    test/master/test_unit_agv_lifecycle.cpp
+    test/master/test_unit_agv_order_lifecycle.cpp
+  )
+  target_link_libraries(test_master_agv vda5050_core::master)
+
+  ament_add_gmock(test_master_validation
+    test/master/test_unit_schema_validator.cpp
+    test/master/test_unit_pre_send_validator.cpp
+    test/master/test_unit_traversability_validator.cpp
+    test/master/test_unit_action_conflict_validator.cpp
+    test/master/test_unit_instant_action_mode_validator.cpp
+    test/master/test_unit_factsheet_alignment.cpp
+  )
+  target_link_libraries(test_master_validation vda5050_core::master)
+
+  ament_add_gmock(test_master_order
+    test/master/test_unit_order_publisher.cpp
+    test/master/test_unit_order_lifecycle_manager.cpp
+    test/master/test_unit_order_stitcher.cpp
+  )
+  target_link_libraries(test_master_order vda5050_core::master)
+
+  ament_add_gmock(test_master_misc
+    test/master/test_unit_action_factory.cpp
+    test/master/test_unit_state_event_detector.cpp
+    test/master/test_unit_connection_event_detector.cpp
+    test/master/test_unit_map_loader.cpp
+  )
+  target_link_libraries(test_master_misc vda5050_core::master)
+  target_compile_definitions(test_master_misc PRIVATE
+    VDA5050_CORE__MASTER__SAMPLE_MAP_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/master/data/sample_map.json")
 endif()
 
 # Install linter macro

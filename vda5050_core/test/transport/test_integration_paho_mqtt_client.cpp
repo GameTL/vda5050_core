@@ -25,6 +25,24 @@
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/transport/paho_mqtt_client.hpp"
 
+namespace {
+// Poll until `pred()` returns true or `timeout` elapses. Returns true on
+// success. Replaces hard-coded sleeps that are brittle under broker latency
+// and CI load.
+template <typename Predicate>
+bool wait_for(Predicate pred, std::chrono::milliseconds timeout)
+{
+  using clock = std::chrono::steady_clock;
+  const auto deadline = clock::now() + timeout;
+  while (clock::now() < deadline)
+  {
+    if (pred()) return true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  return pred();
+}
+}  // namespace
+
 TEST(PahoMqttClientTest, PublishSubscribe)
 {
   std::string broker = "tcp://localhost:1883";
@@ -52,9 +70,9 @@ TEST(PahoMqttClientTest, PublishSubscribe)
   ASSERT_NO_THROW(talker->connect());
   ASSERT_NO_THROW(talker->publish(topic, payload, qos));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-  ASSERT_EQ(message_count, 1);
+  EXPECT_TRUE(wait_for(
+    [&] { return message_count.load() == 1; }, std::chrono::seconds(2)));
+  EXPECT_EQ(message_count.load(), 1);
 
   ASSERT_NO_THROW(talker->disconnect());
   ASSERT_NO_THROW(listener->disconnect());
@@ -85,16 +103,18 @@ TEST(PahoMqttClientTest, UnsubscribeStopsMessages)
 
   // Publish first message and verify it is received
   ASSERT_NO_THROW(talker->publish(topic, payload, qos));
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  EXPECT_TRUE(wait_for(
+    [&] { return message_count.load() == 1; }, std::chrono::seconds(2)));
   ASSERT_EQ(message_count.load(), 1);
 
-  // Unsubscribe from the topic
+  // Unsubscribe from the topic. unsubscribe() waits for broker ack, so no
+  // post-call sleep is required.
   ASSERT_NO_THROW(listener->unsubscribe(topic));
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-  // Publish second message after unsubscribe
+  // Publish second message after unsubscribe; allow plenty of time for any
+  // stray delivery to land before asserting it didn't.
   ASSERT_NO_THROW(talker->publish(topic, payload, qos));
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
   // Message count should still be 1 (no new messages received)
   ASSERT_EQ(message_count.load(), 1);
