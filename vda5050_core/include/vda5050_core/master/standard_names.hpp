@@ -36,7 +36,7 @@ enum class QosLevel : int
 };
 
 const std::string Version = "v2";                          // NOLINT
-const std::string InterfaceName = "rmf2";                  // NOLINT
+const std::string InterfaceName = "uagv";                  // NOLINT
 const std::string ConnectionTopic = "connection";          // NOLINT
 const std::string FactsheetTopic = "factsheet";            // NOLINT
 const std::string OrderTopic = "order";                    // NOLINT
