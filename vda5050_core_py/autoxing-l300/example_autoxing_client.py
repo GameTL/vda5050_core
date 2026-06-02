@@ -45,7 +45,12 @@ import traceback
 
 import vda5050_core_py as vda
 
-from autoxing_bridge import dispatch_move, wait_for_arrival
+from autoxing_bridge import (
+    dispatch_move,
+    poll_pose_and_planning,
+    tracked_pose_to_agv_position,
+    wait_for_arrival,
+)
 
 CONFIG = {
     "broker": "tcp://localhost:1883",
@@ -54,9 +59,34 @@ CONFIG = {
     "protocol_version": "2.0.0",
     "manufacturer": "Manufacturer",
     "serial_number": "S001",
-    "poll_interval": 0.5,
+    "poll_interval": 1.0,
     "nav_timeout": 300.0,
+    "map_id": "LargeARTC",
 }
+
+
+def _publish_initial_pose(nav: vda.NavigationManager, map_id: str) -> None:
+    """Poll the robot's pose once and seed the published State's agvPosition.
+
+    The adapter otherwise only learns the pose during navigation (mirror_pose
+    below), so an idle robot publishes no agvPosition. A master (or the demo
+    publisher) needs an initialized pose up front to make the first order node
+    trivially reachable (VDA5050 §6.6.3.1). Best-effort: a robot/bridge failure
+    is logged and ignored — the publisher falls back to a deviation-only node.
+    """
+    try:
+        pose_msg, _planning = poll_pose_and_planning()
+        agv = tracked_pose_to_agv_position(pose_msg, map_id=map_id)
+        if agv.position_initialized:
+            nav.set_agv_position(agv)
+            print(
+                f"Initial pose seeded: ({agv.x}, {agv.y}) map={map_id!r}",
+                file=sys.stderr,
+            )
+        else:
+            print("Initial pose unavailable (not localized?)", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001 — best-effort startup seed
+        print(f"Initial pose poll failed: {exc}", file=sys.stderr)
 
 
 def _drive_to_node(
@@ -143,6 +173,7 @@ def main() -> int:
         ).start()
 
     adapter.on_navigate(on_navigate)
+    _publish_initial_pose(nav, CONFIG["map_id"])
     adapter.start()
     print(
         f"Adapter started ({CONFIG['interface']}/v2/"

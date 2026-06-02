@@ -4,6 +4,11 @@ This repository provides libraries and tools to
 - Enable VDA5050 compatibility for AGV/AMRs
 - Build custom VDA5050 Master.
 
+> **Upstream routing:** this library does not plan routes. The master is
+> designed to receive its route/order (the node + edge graph) from an **RMF2
+> MAPF Plan Executor and Plan server** upstream; the master then validates,
+> stitches, delivers, and tracks that order over VDA5050.
+
 # Build and install 
 ```bash 
 colcon build 
