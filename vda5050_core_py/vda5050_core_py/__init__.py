@@ -47,6 +47,25 @@ from ._core import (
     create_default_mqtt_client,
 )
 
+# Master (FMS) side — manages multiple AGVs, assigns orders, tracks state.
+from ._core import (
+    AGV,
+    AGVState,
+    AssignmentDecision,
+    AssignmentResult,
+    ConnectionState,
+    Edge,
+    Error,
+    ErrorLevel,
+    EdgeState,
+    Header,
+    NodeState,
+    OperatingMode,
+    Order,
+    State,
+    VDA5050Master,
+)
+
 _PAUSE_MSG = (
     "Paused (Ctrl+Z). Resume in this shell: fg   "
     "(or: bg, then fg). Ctrl+C still exits cleanly.\n"
@@ -128,4 +147,20 @@ __all__ = [
     "ProtocolAdapter",
     "create_default_mqtt_client",
     "run_until_signal",
+    # Master (FMS) side
+    "AGV",
+    "AGVState",
+    "AssignmentDecision",
+    "AssignmentResult",
+    "ConnectionState",
+    "Edge",
+    "EdgeState",
+    "Error",
+    "ErrorLevel",
+    "Header",
+    "NodeState",
+    "OperatingMode",
+    "Order",
+    "State",
+    "VDA5050Master",
 ]

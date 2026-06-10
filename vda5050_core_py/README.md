@@ -116,12 +116,14 @@ incoming Orders regardless of how long the Python callback takes.
 
 ## Tests
 
-The smoke tests run automatically when `BUILD_TESTING=ON` (the colcon default):
+`colcon build` (with `BUILD_TESTING=ON`, the colcon default) only *registers*
+the smoke tests — it does not run them. Build first, then test, then report:
 
 ```bash
 cd ~/vda5050
-colcon test --packages-select vda5050_core_py
-colcon test-result --verbose
+colcon build  --packages-up-to vda5050_core_py     # builds + registers tests
+colcon test   --packages-select vda5050_core_py    # runs pytest
+colcon test-result --verbose                        # report
 ```
 
 Manual invocation (after sourcing the workspace):

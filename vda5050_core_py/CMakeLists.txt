@@ -21,6 +21,7 @@ find_package(vda5050_core REQUIRED)
 pybind11_add_module(_core
   SHARED
     src/bindings.cpp
+    src/master_bindings.cpp
 )
 
 target_link_libraries(_core
@@ -30,6 +31,7 @@ target_link_libraries(_core
     vda5050_core::execution
     vda5050_core::transport
     vda5050_core::types
+    vda5050_core::master
 )
 
 # Install the Python source package (vda5050_core_py/__init__.py, py.typed).
@@ -50,6 +52,9 @@ install(DIRECTORY autoxing-l300
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_adapter_smoke test/test_adapter_smoke.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(test_master_smoke test/test_master_smoke.py
     TIMEOUT 60
   )
 endif()

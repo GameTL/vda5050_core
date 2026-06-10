@@ -1,0 +1,14 @@
+{
+    "map_info": { "map_id": "LargeARTC", "map_version": "1.0", "map_status": "ENABLED" },
+    "nodes": [
+      { "node_id": "node_table", "x": -11.0, "y": 1.2, "allowed_deviation_xy": 1.0 },
+      { "node_id": "node_row",   "x": -11.0, "y": 3.0 },
+      { "node_id": "node_west",  "x": -16.0, "y": 3.0 },
+      { "node_id": "node_east",  "x":  -6.0, "y": 3.0 }
+    ],
+    "edges": [
+      { "edge_id": "edge_node_table_node_row", "start_node_id": "node_table", "end_node_id": "node_row" },
+      { "edge_id": "edge_node_row_node_west",  "start_node_id": "node_row",   "end_node_id": "node_west" },
+      { "edge_id": "edge_node_west_node_east", "start_node_id": "node_west",  "end_node_id": "node_east" }
+    ]
+  }

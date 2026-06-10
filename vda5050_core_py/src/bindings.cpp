@@ -32,6 +32,8 @@
 #include <vda5050_core/types/node.hpp>
 #include <vda5050_core/types/node_position.hpp>
 
+#include "master_bindings.hpp"
+
 namespace py = pybind11;
 using namespace vda5050_core;
 
@@ -256,4 +258,9 @@ PYBIND11_MODULE(_core, m)
       "Unsubscribe, stop the spin loop, publish OFFLINE, disconnect MQTT. "
       "Joins the spin thread; releases the GIL while waiting so in-flight "
       "Python callbacks can complete.");
+
+  // FMS-side master bindings (VDA5050Master + order/state types). Registered
+  // after the transport (MqttClient) and shared types above, since the master
+  // surface references them.
+  vda5050_core_py::register_master_bindings(m);
 }
