@@ -320,7 +320,7 @@ RobotUpdateHandle::RobotUpdateHandle(
 //=============================================================================
 FleetConfiguration::FleetConfiguration(
   std::string fleet_name, std::string broker_uri, std::string client_id_prefix,
-  std::chrono::seconds update_interval)
+  int update_interval)
 : fleet_name_(std::move(fleet_name)),
   broker_uri_(std::move(broker_uri)),
   client_id_prefix_(std::move(client_id_prefix)),
@@ -412,13 +412,13 @@ void FleetConfiguration::set_client_id_prefix(std::string value)
 }
 
 //=============================================================================
-std::chrono::seconds FleetConfiguration::update_interval() const
+int FleetConfiguration::update_interval() const
 {
   return update_interval_;
 }
 
 //=============================================================================
-void FleetConfiguration::set_update_interval(std::chrono::seconds value)
+void FleetConfiguration::set_update_interval(int value)
 {
   update_interval_ = value;
 }

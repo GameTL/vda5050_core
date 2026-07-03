@@ -272,13 +272,13 @@ PYBIND11_MODULE(vda5050_core_python, m)
   py::class_<RobotUpdateHandle, std::shared_ptr<RobotUpdateHandle>>(
     m_rmf_migration, "RobotUpdateHandle")
     .def("update", &RobotUpdateHandle::update)
-    .def("more", [](RobotUpdateHandle& self) { self.more(); });
+    .def("more", [](RobotUpdateHandle& self) { return self.more(); });
 
   py::class_<FleetConfiguration>(m_rmf_migration, "FleetConfiguration")
     .def(
-      py::init<std::string, std::string, std::string, std::chrono::seconds>(),
+      py::init<std::string, std::string, std::string, int>(),
       py::arg("fleet_name"), py::arg("broker_uri"), py::arg("client_id_prefix"),
-      py::arg("update_interval") = std::chrono::seconds(30))
+      py::arg("update_interval") = 30)
     .def_property(
       "fleet_name", &FleetConfiguration::fleet_name,
       &FleetConfiguration::set_fleet_name)

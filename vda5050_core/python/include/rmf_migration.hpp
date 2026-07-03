@@ -215,8 +215,7 @@ class FleetConfiguration
 public:
   FleetConfiguration(
     std::string fleet_name, std::string broker_uri,
-    std::string client_id_prefix,
-    std::chrono::seconds update_interval = std::chrono::seconds(30));
+    std::string client_id_prefix, int update_interval = 30);
 
   static std::optional<FleetConfiguration> from_config_files(
     const std::string& config_file);
@@ -244,9 +243,9 @@ public:
 
   void set_client_id_prefix(std::string value);
 
-  std::chrono::seconds update_interval() const;
+  int update_interval() const;
 
-  void set_update_interval(std::chrono::seconds value);
+  void set_update_interval(int value);
 
 private:
   std::string fleet_name_;
@@ -254,7 +253,7 @@ private:
   std::string client_id_prefix_;
   std::unordered_map<std::string, RobotConfiguration>
     known_robot_configurations_;
-  std::chrono::seconds update_interval_;
+  int update_interval_;
 };
 
 class FleetUpdateHandle
