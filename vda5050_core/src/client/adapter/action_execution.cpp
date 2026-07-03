@@ -26,45 +26,67 @@ namespace adapter {
 
 //=============================================================================
 std::shared_ptr<ActionExecution> ActionExecution::make(
-  const std::string& action_id, const std::string& action_type,
-  std::function<void()> finish_callback,
-  std::function<void(std::string)> fail_callback,
-  std::optional<std::string> order_id)
+  std::function<void(types::ActionStatus, std::optional<std::string>)>
+    status_update_callback)
 {
-  auto execution = std::shared_ptr<ActionExecution>(new ActionExecution(
-    action_id, action_type, std::move(finish_callback),
-    std::move(fail_callback), order_id));
+  auto execution = std::shared_ptr<ActionExecution>(
+    new ActionExecution(std::move(status_update_callback)));
   return execution;
 }
 
 //=============================================================================
-const std::string& ActionExecution::action_id() const
+void ActionExecution::intializing()
 {
-  return action_id_;
+  if (status_update_callback_)
+    status_update_callback_(types::ActionStatus::INITIALIZING, std::nullopt);
 }
 
 //=============================================================================
-const std::string& ActionExecution::action_type() const
+void ActionExecution::running()
 {
-  return action_id_;
+  if (status_update_callback_)
+    status_update_callback_(types::ActionStatus::RUNNING, std::nullopt);
 }
 
 //=============================================================================
-std::optional<std::string> ActionExecution::order_id()
+void ActionExecution::paused(std::optional<std::string> result_description)
 {
-  return order_id_;
+  if (status_update_callback_)
+    status_update_callback_(
+      types::ActionStatus::PAUSED, std::move(result_description));
+}
+
+//=============================================================================
+void ActionExecution::finished()
+{
+  Execution::finished();
+}
+
+//=============================================================================
+void ActionExecution::finished(const std::string& result_description)
+{
+  if (is_finished()) return;
+
+  if (status_update_callback_)
+    status_update_callback_(types::ActionStatus::FINISHED, result_description);
+
+  status_update_callback_ = nullptr;
+
+  Execution::finished();
 }
 
 //=============================================================================
 ActionExecution::ActionExecution(
-  const std::string& action_id, const std::string& action_type,
-  std::function<void()> finish_callback,
-  std::function<void(std::string)> fail_callback,
-  std::optional<std::string> order_id)
-: Execution(std::move(finish_callback), std::move(fail_callback)),
-  action_id_(action_id),
-  action_type_(action_type),
-  order_id_(order_id)
+  std::function<void(types::ActionStatus, std::optional<std::string>)>
+    status_update_callback)
+: Execution(
+    [cb = status_update_callback]() {
+      if (cb) cb(types::ActionStatus::FINISHED, std::nullopt);
+    },
+    [cb = status_update_callback](std::string reason) {
+      if (cb) cb(types::ActionStatus::FAILED, std::move(reason));
+    }),
+  status_update_callback_(std::move(status_update_callback))
 {
   // Nothing to do here ...
 }

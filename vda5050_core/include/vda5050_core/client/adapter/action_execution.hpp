@@ -21,9 +21,11 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "vda5050_core/client/adapter/execution.hpp"
+#include "vda5050_core/types/action_status.hpp"
 
 namespace vda5050_core {
 
@@ -35,27 +37,26 @@ class ActionExecution : public Execution
 {
 public:
   static std::shared_ptr<ActionExecution> make(
-    const std::string& action_id, const std::string& action_type,
-    std::function<void()> finish_callback,
-    std::function<void(std::string)> fail_callback,
-    std::optional<std::string> order_id = std::nullopt);
+    std::function<void(types::ActionStatus, std::optional<std::string>)>
+      status_update_callback);
 
-  const std::string& action_id() const;
+  void intializing();
 
-  const std::string& action_type() const;
+  void running();
 
-  std::optional<std::string> order_id();
+  void paused(std::optional<std::string> result_description = std::nullopt);
+
+  void finished();
+
+  void finished(const std::string& result_description);
 
 private:
   ActionExecution(
-    const std::string& action_id, const std::string& action_type,
-    std::function<void()> finish_callback,
-    std::function<void(std::string)> fail_callback,
-    std::optional<std::string> order_id);
+    std::function<void(types::ActionStatus, std::optional<std::string>)>
+      status_update_callback);
 
-  std::string action_id_;
-  std::string action_type_;
-  std::optional<std::string> order_id_;
+  std::function<void(types::ActionStatus, std::optional<std::string>)>
+    status_update_callback_;
 };
 
 }  // namespace adapter
