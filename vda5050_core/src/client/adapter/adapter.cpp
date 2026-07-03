@@ -233,16 +233,16 @@ void Adapter::Implementation::process_navigation()
 
   const auto& next_node = order.nodes[node_it->second];
 
+  auto node_request = NodeRequest::from_node(next_node);
+
   uint32_t next_edge_seq = next_node_seq - 1;
 
   auto edge_it = order_state.edge_lookup.find(next_edge_seq);
 
-  NavigationRequest request;
-  request.destination = next_node;
-
+  std::optional<EdgeRequest> edge_request;
   if (edge_it != order_state.edge_lookup.end())
   {
-    request.approach_edge = order.edges[edge_it->second];
+    edge_request = EdgeRequest::from_edge(order.edges[edge_it->second]);
   }
 
   {
@@ -260,9 +260,9 @@ void Adapter::Implementation::process_navigation()
   try
   {
     navigation_callback(
-      std::move(request),
+      std::move(node_request), std::move(edge_request),
       OrderExecution::make(
-        order.order_id,
+        order.order_id, order.order_update_id,
         [this, next_node_seq, next_edge_seq]() {
           ActiveOrder order_state;
           {
@@ -338,32 +338,20 @@ void Adapter::Implementation::process_actions()
 
   state_manager->add_action_state(action_state);
 
-  ActionRequest request;
-  request.action = action;
+  auto request = ActionRequest::from_action(action);
 
   VDA5050_INFO(
     "Dispatching action type [{}] with action ID [{}]", action.action_type,
     action.action_id);
 
   auto execution = ActionExecution::make(
-    action.action_id, action.action_type,
-    [this, action]() {
+    [this, action](types::ActionStatus status, auto result_description) {
       types::ActionState action_state;
       action_state.action_id = action.action_id;
       action_state.action_type = action.action_type;
-      action_state.action_status = types::ActionStatus::FINISHED;
+      action_state.action_status = status;
       action_state.action_description = action.action_description;
-
-      state_manager->add_action_state(action_state);
-      request_state_publish();
-    },
-    [this, action](const std::string& reason) {
-      types::ActionState action_state;
-      action_state.action_id = action.action_id;
-      action_state.action_type = action.action_type;
-      action_state.action_status = types::ActionStatus::FAILED;
-      action_state.action_description = action.action_description;
-      action_state.result_description = reason;
+      action_state.result_description = std::move(result_description);
 
       state_manager->add_action_state(action_state);
       request_state_publish();
@@ -531,7 +519,8 @@ std::shared_ptr<Adapter> Adapter::make(
 
 //=============================================================================
 void Adapter::on_navigate(
-  std::function<void(NavigationRequest, std::shared_ptr<OrderExecution>)>
+  std::function<void(
+    NodeRequest, std::optional<EdgeRequest>, std::shared_ptr<OrderExecution>)>
     callback)
 {
   pimpl_->navigation_callback = std::move(callback);

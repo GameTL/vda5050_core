@@ -112,7 +112,8 @@ public:
 
   SharedState<FactsheetManager> factsheet_manager;
 
-  std::function<void(NavigationRequest, std::shared_ptr<OrderExecution>)>
+  std::function<void(
+    NodeRequest, std::optional<EdgeRequest>, std::shared_ptr<OrderExecution>)>
     navigation_callback;
 
   std::function<void(ActionRequest, std::shared_ptr<ActionExecution>)>
