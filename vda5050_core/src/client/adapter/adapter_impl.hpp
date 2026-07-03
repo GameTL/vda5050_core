@@ -29,6 +29,7 @@
 
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/types/action.hpp"
+#include "vda5050_core/types/action_parameter.hpp"
 #include "vda5050_core/types/order.hpp"
 
 #include "vda5050_core/client/adapter/adapter.hpp"
@@ -148,6 +149,14 @@ public:
   void publish_state();
 
   void request_state_publish();
+
+  void handle_state_request(std::shared_ptr<ActionExecution> execution);
+
+  void handle_factsheet_request(std::shared_ptr<ActionExecution> execution);
+
+  void handle_init_position(
+    std::vector<types::ActionParameter> parameters,
+    std::shared_ptr<ActionExecution> execution);
 
   types::Factsheet make_default_factsheet();
 };

@@ -257,52 +257,62 @@ void Adapter::Implementation::process_navigation()
     "Dispatching node ID [{}] with sequence [{}]", next_node.node_id,
     next_node_seq);
 
-  navigation_callback(
-    std::move(request),
-    OrderExecution::make(
-      order.order_id,
-      [this, next_node_seq, next_edge_seq]() {
-        ActiveOrder order_state;
-        {
+  try
+  {
+    navigation_callback(
+      std::move(request),
+      OrderExecution::make(
+        order.order_id,
+        [this, next_node_seq, next_edge_seq]() {
+          ActiveOrder order_state;
+          {
+            auto active = active_order.lock();
+            if (!active->order.has_value()) return;
+
+            order_state = *active->order;
+
+            active->order->executing = false;
+            active->order->last_completed_node_sequence_id = next_node_seq;
+          }
+
+          auto edge_it = order_state.edge_lookup.find(next_edge_seq);
+          if (edge_it != order_state.edge_lookup.end())
+          {
+            state_manager->edge_traversed(
+              order_state.order.edges[edge_it->second]);
+          }
+
+          auto node_it = order_state.node_lookup.find(next_node_seq);
+          if (node_it != order_state.node_lookup.end())
+          {
+            state_manager->node_reached(
+              order_state.order.nodes[node_it->second]);
+          }
+
+          request_state_publish();
+        },
+        [this](const std::string& reason) {
+          types::Error e;
+          e.error_type = errors::NavigationFailedError;
+          e.error_description = reason;
+
+          state_manager->add_error(e);
+
           auto active = active_order.lock();
-          if (!active->order.has_value()) return;
+          if (active->order.has_value())
+          {
+            active->order->executing = false;
+          }
 
-          order_state = *active->order;
-
-          active->order->executing = false;
-          active->order->last_completed_node_sequence_id = next_node_seq;
-        }
-
-        auto edge_it = order_state.edge_lookup.find(next_edge_seq);
-        if (edge_it != order_state.edge_lookup.end())
-        {
-          state_manager->edge_traversed(
-            order_state.order.edges[edge_it->second]);
-        }
-
-        auto node_it = order_state.node_lookup.find(next_node_seq);
-        if (node_it != order_state.node_lookup.end())
-        {
-          state_manager->node_reached(order_state.order.nodes[node_it->second]);
-        }
-
-        request_state_publish();
-      },
-      [this](const std::string& reason) {
-        types::Error e;
-        e.error_type = errors::NavigationFailedError;
-        e.error_description = reason;
-
-        state_manager->add_error(e);
-
-        auto active = active_order.lock();
-        if (active->order.has_value())
-        {
-          active->order->executing = false;
-        }
-
-        request_state_publish();
-      }));
+          request_state_publish();
+        }));
+  }
+  catch (const std::exception& e)
+  {
+    VDA5050_ERROR(
+      "Navigation failed towards node ID [{}] with sequence ID [{}]",
+      next_node.node_id, next_node.sequence_id);
+  }
 }
 
 //=============================================================================
@@ -331,31 +341,59 @@ void Adapter::Implementation::process_actions()
   ActionRequest request;
   request.action = action;
 
-  action_callback(
-    std::move(request),
-    ActionExecution::make(
-      action.action_id, action.action_type,
-      [this, action]() {
-        types::ActionState action_state;
-        action_state.action_id = action.action_id;
-        action_state.action_type = action.action_type;
-        action_state.action_status = types::ActionStatus::FINISHED;
-        action_state.action_description = action.action_description;
+  VDA5050_INFO(
+    "Dispatching action type [{}] with action ID [{}]", action.action_type,
+    action.action_id);
 
-        state_manager->add_action_state(action_state);
-        request_state_publish();
-      },
-      [this, action](const std::string& reason) {
-        types::ActionState action_state;
-        action_state.action_id = action.action_id;
-        action_state.action_type = action.action_type;
-        action_state.action_status = types::ActionStatus::FAILED;
-        action_state.action_description = action.action_description;
-        action_state.result_description = reason;
+  auto execution = ActionExecution::make(
+    action.action_id, action.action_type,
+    [this, action]() {
+      types::ActionState action_state;
+      action_state.action_id = action.action_id;
+      action_state.action_type = action.action_type;
+      action_state.action_status = types::ActionStatus::FINISHED;
+      action_state.action_description = action.action_description;
 
-        state_manager->add_action_state(action_state);
-        request_state_publish();
-      }));
+      state_manager->add_action_state(action_state);
+      request_state_publish();
+    },
+    [this, action](const std::string& reason) {
+      types::ActionState action_state;
+      action_state.action_id = action.action_id;
+      action_state.action_type = action.action_type;
+      action_state.action_status = types::ActionStatus::FAILED;
+      action_state.action_description = action.action_description;
+      action_state.result_description = reason;
+
+      state_manager->add_action_state(action_state);
+      request_state_publish();
+    });
+
+  if (action.action_type == "factsheetRequest")
+  {
+    handle_factsheet_request(execution);
+  }
+  else if (action.action_type == "stateRequest")
+  {
+    handle_state_request(execution);
+  }
+  else if (action.action_type == "initPosition")
+  {
+    handle_init_position(action.action_parameters.value(), execution);
+  }
+  else
+  {
+    try
+    {
+      action_callback(std::move(request), execution);
+    }
+    catch (const std::exception& e)
+    {
+      VDA5050_ERROR(
+        "Failed to run action of type [{}] and action ID [{}]",
+        action.action_type, action.action_id);
+    }
+  }
 }
 
 //=============================================================================
@@ -376,6 +414,32 @@ void Adapter::Implementation::request_state_publish()
 {
   state_manager->mark_publish_requested();
   state_cv.notify_all();
+}
+
+//=============================================================================
+void Adapter::Implementation::handle_state_request(
+  std::shared_ptr<ActionExecution> execution)
+{
+  request_state_publish();
+  execution->finished();
+  VDA5050_INFO("Received stateRequest");
+}
+
+//=============================================================================
+void Adapter::Implementation::handle_factsheet_request(
+  std::shared_ptr<ActionExecution> execution)
+{
+  publish_factsheet();
+  execution->finished();
+  VDA5050_INFO("Received factsheetRequest");
+}
+
+//=============================================================================
+void Adapter::Implementation::handle_init_position(
+  std::vector<types::ActionParameter> parameters,
+  std::shared_ptr<ActionExecution> execution)
+{
+  VDA5050_INFO("Received initPosition");
 }
 
 //=============================================================================
