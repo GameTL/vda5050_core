@@ -46,7 +46,8 @@ class StateManager : public std::enable_shared_from_this<StateManager>
 public:
   static std::shared_ptr<StateManager> make();
 
-  void set_position(double x, double y, double theta);
+  void set_position(
+    double x, double y, double theta, const std::string& map_id);
 
   void set_velocity(const types::Velocity& velocity);
 

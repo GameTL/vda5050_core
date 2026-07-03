@@ -34,13 +34,14 @@ std::shared_ptr<StateManager> StateManager::make()
 }
 
 //=============================================================================
-void StateManager::set_position(double x, double y, double theta)
+void StateManager::set_position(
+  double x, double y, double theta, const std::string& map_id)
 {
   types::AGVPosition agv_position;
   agv_position.x = x;
   agv_position.y = y;
   agv_position.theta = theta;
-  agv_position.map_id = map_id_;
+  agv_position.map_id = map_id;
   agv_position.position_initialized = position_initialized_;
 
   set_agv_position(agv_position);

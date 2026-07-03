@@ -297,8 +297,8 @@ LocalizationRequest RobotCallbacks::localize() const
 void RobotUpdateHandle::update(
   RobotState state, ActivityIdentifier /*identifier*/)
 {
-  adapter_->state_manager()->set_agv_position(
-    RobotState::to_agv_position(state.map(), state.position()));
+  adapter_->state_manager()->set_position(
+    state.position()[0], state.position()[1], state.position()[2], state.map());
   adapter_->state_manager()->set_battery_state(
     RobotState::to_battery_state(state.battery_state_of_charge()));
 }
@@ -435,8 +435,9 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
     configuration.manufacturer, configuration.serial_number);
 
   auto adapter = client::adapter::Adapter::make(protocol_adapter);
-  adapter->state_manager()->set_agv_position(
-    RobotState::to_agv_position(initial_state.map(), initial_state.position()));
+  adapter->state_manager()->set_position(
+    initial_state.position()[0], initial_state.position()[1],
+    initial_state.position()[2], initial_state.map());
   adapter->state_manager()->set_battery_state(
     RobotState::to_battery_state(initial_state.battery_state_of_charge()));
 
