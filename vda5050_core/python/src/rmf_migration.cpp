@@ -442,27 +442,28 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
 
   adapter->on_navigate(
     [callbacks](
-      client::adapter::NavigationRequest request,
+      client::adapter::NodeRequest node_request,
+      std::optional<client::adapter::EdgeRequest> /*edge_request*/,
       std::shared_ptr<client::adapter::OrderExecution> execution) {
-      const auto& node_position = request.destination.node_position.value();
+      const auto& node_position = node_request.node_position().value();
       auto destination = Destination(
-        request.destination.node_position.value().map_id,
+        node_request.node_position().value().map_id,
         {node_position.x, node_position.y, node_position.theta.value_or(0.0)},
-        request.destination.sequence_id, request.destination.node_id);
+        node_request.sequence_id(), node_request.node_id());
       auto command =
         CommandExecution(execution, ActivityIdentifier(execution->order_id()));
 
       callbacks.navigate()(std::move(destination), std::move(command));
     });
 
-  adapter->on_action([callbacks](auto request, auto execution) {
-    auto command = CommandExecution(
-      execution,
-      ActivityIdentifier(execution->order_id(), execution->action_id()));
+  adapter->on_action(
+    [callbacks](client::adapter::ActionRequest request, auto execution) {
+      auto command = CommandExecution(
+        execution, ActivityIdentifier(request.order_id(), request.action_id()));
 
-    callbacks.action_executor()(
-      request.action.action_type, request.action.action_id, std::move(command));
-  });
+      callbacks.action_executor()(
+        request.action_type(), request.action_id(), std::move(command));
+    });
 
   robots_.insert_or_assign(name, adapter);
 
