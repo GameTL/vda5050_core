@@ -254,13 +254,7 @@ public:
     }
   }
 
-  static std::string get_topic_version(const std::string& version)
-  {
-    // TODO(sauk2): Enforce stricter version checking before parsing string
-    auto position = version.find('.');
-    std::string major = version.substr(0, position);
-    return "v" + major;
-  }
+  static std::string get_topic_version(const std::string& version);
 
 private:
   ProtocolAdapter(

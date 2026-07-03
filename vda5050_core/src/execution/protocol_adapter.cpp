@@ -72,6 +72,14 @@ bool ProtocolAdapter::connected()
   return false;
 }
 
+std::string ProtocolAdapter::get_topic_version(const std::string& version)
+{
+  // TODO(sauk2): Enforce stricter version checking before parsing string
+  auto position = version.find('.');
+  std::string major = version.substr(0, position);
+  return "v" + major;
+}
+
 //=============================================================================
 ProtocolAdapter::ProtocolAdapter(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client,
@@ -84,7 +92,8 @@ ProtocolAdapter::ProtocolAdapter(
   serial_number_(serial_number)
 {
   std::string topic_prefix = fmt::format(
-    "{}/{}/{}/{}", interface_, version_, manufacturer_, serial_number_);
+    "{}/{}/{}/{}", interface_, get_topic_version(version_), manufacturer_,
+    serial_number_);
 
   topic_names_ = {
     {std::type_index(typeid(vda5050_core::types::Connection)),
