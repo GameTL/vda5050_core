@@ -16,13 +16,15 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__CLIENT__ADAPTER__NAVIGATION_REQUEST_HPP_
-#define VDA5050_CORE__CLIENT__ADAPTER__NAVIGATION_REQUEST_HPP_
+#ifndef VDA5050_CORE__CLIENT__ADAPTER__NODE_REQUEST_HPP_
+#define VDA5050_CORE__CLIENT__ADAPTER__NODE_REQUEST_HPP_
 
+#include <cstdint>
 #include <optional>
+#include <string>
 
-#include "vda5050_core/types/edge.hpp"
 #include "vda5050_core/types/node.hpp"
+#include "vda5050_core/types/node_position.hpp"
 
 namespace vda5050_core {
 
@@ -30,15 +32,37 @@ namespace client {
 
 namespace adapter {
 
-struct NavigationRequest
+class NodeRequest
 {
-  types::Node destination;
+public:
+  const std::string& node_id() const;
 
-  std::optional<types::Edge> approach_edge;
+  uint32_t sequence_id() const;
+
+  const std::optional<types::NodePosition>& node_position() const;
+
+  const std::optional<std::string>& node_description() const;
+
+private:
+  friend class Adapter;
+
+  static NodeRequest from_node(const types::Node& node);
+
+  NodeRequest(
+    const std::string& node_id, uint32_t sequence_id,
+    std::optional<types::NodePosition> node_position = std::nullopt,
+    std::optional<std::string> node_description = std::nullopt);
+
+  std::string node_id_;
+  uint32_t sequence_id_;
+
+  std::optional<types::NodePosition> node_position_;
+
+  std::optional<std::string> node_description_;
 };
 
 }  // namespace adapter
 }  // namespace client
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__CLIENT__ADAPTER__NAVIGATION_REQUEST_HPP_
+#endif  // VDA5050_CORE__CLIENT__ADAPTER__NODE_REQUEST_HPP_
