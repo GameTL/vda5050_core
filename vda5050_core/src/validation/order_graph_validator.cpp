@@ -16,20 +16,19 @@
  * limitations under the License.
  */
 
+#include <fmt/format.h>
 #include <algorithm>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
-#include "vda5050_core/order_utils/order_graph_validator.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
-namespace vda5050_core {
-
-namespace order_utils {
+namespace vda5050_core::validation {
 
 //=============================================================================
-ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
+errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,
@@ -53,8 +52,9 @@ ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
   if (order.nodes.size() != order.edges.size() + 1)
   {
     add_error(
-      "Graph mismatch: Order contains " + std::to_string(order.nodes.size()) +
-        " node(s) but " + std::to_string(order.edges.size()) + " edge(s).",
+      fmt::format(
+        "Graph mismatch: Order contains {} node(s) but {} edge(s).",
+        order.nodes.size(), order.edges.size()),
       {});
     return res;
   }
@@ -165,11 +165,11 @@ ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
 }
 
 //=============================================================================
-ValidationResult is_valid_update(
+errors::ValidationResult is_valid_update(
   const vda5050_core::types::Order& base_order,
   const vda5050_core::types::Order& next_order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,
@@ -216,5 +216,4 @@ ValidationResult is_valid_update(
   return res;
 }
 
-}  // namespace order_utils
-}  // namespace vda5050_core
+}  // namespace vda5050_core::validation
