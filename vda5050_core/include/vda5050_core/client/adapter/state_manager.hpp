@@ -46,7 +46,7 @@ class StateManager : public std::enable_shared_from_this<StateManager>
 public:
   static std::shared_ptr<StateManager> make();
 
-  void set_agv_position(const types::AGVPosition& position);
+  void set_position(double x, double y, double theta);
 
   void set_velocity(const types::Velocity& velocity);
 
@@ -109,8 +109,13 @@ private:
 
   void clear_order();
 
+  void set_agv_position(const types::AGVPosition& position);
+
   mutable std::mutex mutex_;
   types::State state_;
+
+  bool position_initialized_;
+  std::string map_id_;
 
   std::atomic_bool publish_requested_;
 };

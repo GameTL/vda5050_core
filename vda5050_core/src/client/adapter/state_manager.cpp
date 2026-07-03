@@ -34,10 +34,16 @@ std::shared_ptr<StateManager> StateManager::make()
 }
 
 //=============================================================================
-void StateManager::set_agv_position(const types::AGVPosition& position)
+void StateManager::set_position(double x, double y, double theta)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
-  state_.agv_position = position;
+  types::AGVPosition agv_position;
+  agv_position.x = x;
+  agv_position.y = y;
+  agv_position.theta = theta;
+  agv_position.map_id = map_id_;
+  agv_position.position_initialized = position_initialized_;
+
+  set_agv_position(agv_position);
 }
 
 //=============================================================================
@@ -237,7 +243,8 @@ bool StateManager::consume_publish_requested()
 }
 
 //=============================================================================
-StateManager::StateManager() : publish_requested_(false)
+StateManager::StateManager()
+: position_initialized_(false), publish_requested_(false)
 {
   // Nothing to do here ...
 }
@@ -329,6 +336,19 @@ void StateManager::clear_order()
   state_.order_id.clear();
   state_.order_update_id = 0;
   state_.zone_set_id.reset();
+}
+
+//=============================================================================
+void StateManager::set_agv_position(const types::AGVPosition& position)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  state_.agv_position = position;
+
+  if (position.position_initialized)
+  {
+    position_initialized_ = true;
+    map_id_ = position.map_id;
+  }
 }
 
 }  // namespace adapter
