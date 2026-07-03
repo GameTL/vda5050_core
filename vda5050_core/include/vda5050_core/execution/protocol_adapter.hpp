@@ -254,6 +254,8 @@ public:
     }
   }
 
+  void unsubscribe_all();
+
   static std::string get_topic_version(const std::string& version);
 
 private:

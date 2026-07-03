@@ -17,6 +17,7 @@
  */
 
 #include <utility>
+#include <vector>
 
 #include "vda5050_core/execution/protocol_adapter.hpp"
 
@@ -72,6 +73,39 @@ bool ProtocolAdapter::connected()
   return false;
 }
 
+//=============================================================================
+void ProtocolAdapter::unsubscribe_all()
+{
+  // Deactivate the wrapper flags for currently active subscriptions
+  // so any in-flight or post-unsubscribe dispatches become a no-op
+  // at the adapter layer, and collect their topics to unsubscribe
+  // from below, outside the lock.
+  std::vector<std::string> topics_to_unsubscribe;
+  {
+    std::lock_guard<std::mutex> lock(active_flags_mutex_);
+    for (auto& entry : active_flags_)
+    {
+      *(entry.second) = false;
+
+      auto topic_it = topic_names_.find(entry.first);
+      if (topic_it != topic_names_.end())
+      {
+        topics_to_unsubscribe.push_back(topic_it->second);
+      }
+    }
+    active_flags_.clear();
+  }
+
+  if (mqtt_client_)
+  {
+    for (const auto& topic : topics_to_unsubscribe)
+    {
+      mqtt_client_->unsubscribe(topic);
+    }
+  }
+}
+
+//=============================================================================
 std::string ProtocolAdapter::get_topic_version(const std::string& version)
 {
   // TODO(sauk2): Enforce stricter version checking before parsing string

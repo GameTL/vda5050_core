@@ -21,7 +21,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/logger/logger.hpp"
-#include "vda5050_core/order_utils/order_graph_validator.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
 #include "vda5050_core/types/connection.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
@@ -52,7 +52,7 @@ void Adapter::Implementation::subscribe_orders()
 
       if (!active->order.has_value())
       {
-        auto result = order_utils::is_valid_graph(order);
+        auto result = validation::is_valid_graph(order);
 
         if (!result)
         {
@@ -93,7 +93,7 @@ void Adapter::Implementation::subscribe_orders()
         return;
       }
 
-      auto result = order_utils::is_valid_update(active->order->order, order);
+      auto result = validation::is_valid_update(active->order->order, order);
 
       if (!result)
       {
