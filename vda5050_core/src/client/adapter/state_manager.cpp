@@ -104,7 +104,19 @@ void StateManager::set_safety_state(const types::SafetyState& safety_state)
 void StateManager::add_action_state(const types::ActionState& action_state)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  state_.action_states.push_back(action_state);
+  auto it = std::find_if(
+    state_.action_states.begin(), state_.action_states.end(),
+    [&action_state](auto action) {
+      return action_state.action_id == action.action_id;
+    });
+  if (it != state_.action_states.end())
+  {
+    *it = action_state;
+  }
+  else
+  {
+    state_.action_states.push_back(action_state);
+  }
   publish_requested_ = true;
 }
 
