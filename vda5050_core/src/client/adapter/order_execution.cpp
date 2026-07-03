@@ -26,11 +26,13 @@ namespace adapter {
 
 //=============================================================================
 std::shared_ptr<OrderExecution> OrderExecution::make(
-  const std::string& order_id, std::function<void()> finish_callback,
+  const std::string& order_id, uint32_t order_update_id,
+  std::function<void()> finish_callback,
   std::function<void(std::string)> fail_callback)
 {
   auto execution = std::shared_ptr<OrderExecution>(new OrderExecution(
-    order_id, std::move(finish_callback), std::move(fail_callback)));
+    order_id, order_update_id, std::move(finish_callback),
+    std::move(fail_callback)));
   return execution;
 }
 
@@ -41,11 +43,19 @@ const std::string& OrderExecution::order_id() const
 }
 
 //=============================================================================
+uint32_t OrderExecution::order_update_id() const
+{
+  return order_update_id_;
+}
+
+//=============================================================================
 OrderExecution::OrderExecution(
-  const std::string& order_id, std::function<void()> finish_callback,
+  const std::string& order_id, uint32_t order_update_id,
+  std::function<void()> finish_callback,
   std::function<void(std::string)> fail_callback)
 : Execution(std::move(finish_callback), std::move(fail_callback)),
-  order_id_(order_id)
+  order_id_(order_id),
+  order_update_id_(order_update_id)
 {
   // Nothing to do here ...
 }

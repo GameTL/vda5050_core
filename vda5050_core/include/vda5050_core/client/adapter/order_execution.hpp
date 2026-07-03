@@ -35,17 +35,22 @@ class OrderExecution : public Execution
 {
 public:
   static std::shared_ptr<OrderExecution> make(
-    const std::string& order_id, std::function<void()> finish_callback,
+    const std::string& order_id, uint32_t order_update_id,
+    std::function<void()> finish_callback,
     std::function<void(std::string)> fail_callback);
 
   const std::string& order_id() const;
 
+  uint32_t order_update_id() const;
+
 private:
   OrderExecution(
-    const std::string& order_id, std::function<void()> finish_callback,
+    const std::string& order_id, uint32_t order_update_id,
+    std::function<void()> finish_callback,
     std::function<void(std::string)> fail_callback);
 
   std::string order_id_;
+  uint32_t order_update_id_;
 };
 
 }  // namespace adapter
