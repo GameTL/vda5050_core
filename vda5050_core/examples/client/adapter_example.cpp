@@ -26,15 +26,19 @@
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 
+#include "vda5050_core/client/adapter/action_execution.hpp"
 #include "vda5050_core/client/adapter/action_request.hpp"
 #include "vda5050_core/client/adapter/adapter.hpp"
-#include "vda5050_core/client/adapter/execution.hpp"
-#include "vda5050_core/client/adapter/navigation_request.hpp"
+#include "vda5050_core/client/adapter/edge_request.hpp"
+#include "vda5050_core/client/adapter/node_request.hpp"
+#include "vda5050_core/client/adapter/order_execution.hpp"
 
+using vda5050_core::client::adapter::ActionExecution;
 using vda5050_core::client::adapter::ActionRequest;
 using vda5050_core::client::adapter::Adapter;
-using vda5050_core::client::adapter::Execution;
-using vda5050_core::client::adapter::NavigationRequest;
+using vda5050_core::client::adapter::EdgeRequest;
+using vda5050_core::client::adapter::NodeRequest;
+using vda5050_core::client::adapter::OrderExecution;
 using vda5050_core::execution::ProtocolAdapter;
 
 std::atomic_bool running{true};
@@ -61,31 +65,35 @@ int main()
 
   auto state_manager = adapter->state_manager();
 
-  adapter->on_navigate(
-    [state_manager](
-      NavigationRequest request, std::shared_ptr<Execution> execution) {
-      VDA5050_INFO_STREAM(
-        "Navigating to node [" << request.destination.node_id << "]");
+  adapter->on_navigate([state_manager](
+                         NodeRequest node_request,
+                         std::optional<EdgeRequest> /*edge_request*/,
+                         std::shared_ptr<OrderExecution> execution) {
+    VDA5050_INFO_STREAM(
+      "Navigating to node [" << node_request.node_id() << "]");
 
-      std::thread([request, execution, state_manager]() {
-        state_manager->set_driving(true);
+    std::thread([node_request, execution, state_manager]() {
+      state_manager->set_driving(true);
 
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+      std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        state_manager->set_driving(false);
+      state_manager->set_driving(false);
 
-        execution->finished();
+      execution->finished();
 
-        VDA5050_INFO_STREAM(
-          "Reached node [" << request.destination.node_id << "]");
-      }).detach();
-    });
+      VDA5050_INFO_STREAM("Reached node [" << node_request.node_id() << "]");
+    }).detach();
+  });
 
   adapter->on_action(
     [state_manager](
-      ActionRequest request, std::shared_ptr<Execution> execution) {
+      ActionRequest request, std::shared_ptr<ActionExecution> execution) {
       VDA5050_INFO_STREAM(
-        "Action of type [" << request.action.action_type << "] requested");
+        "Action of type [" << request.action_type() << "] requested");
+
+      execution->running();
+
+      std::this_thread::sleep_for(std::chrono::seconds(1));
 
       execution->finished();
     });
