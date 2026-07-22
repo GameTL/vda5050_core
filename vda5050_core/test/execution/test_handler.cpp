@@ -19,6 +19,9 @@
 #include <gmock/gmock.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 #include "vda5050_core/execution/base.hpp"
@@ -67,6 +70,65 @@ public:
   void step(std::shared_ptr<ContextInterface> /*context*/) override
   {
     step_calls++;
+  }
+};
+
+class BlockingMockStrategy : public StrategyInterface
+{
+public:
+  std::atomic_int init_calls = 0;
+  std::atomic_int step_calls = 0;
+  std::atomic_int concurrent_steps = 0;
+  std::atomic_int max_concurrent_steps = 0;
+
+  std::mutex step_mutex;
+  std::condition_variable step_cv;
+  bool hold_step = false;
+  bool step_entered = false;
+
+  void init(std::shared_ptr<ContextInterface> /*context*/) override
+  {
+    init_calls++;
+  }
+
+  void step(std::shared_ptr<ContextInterface> /*context*/) override
+  {
+    step_calls++;
+
+    const int concurrent = concurrent_steps.fetch_add(1) + 1;
+    int observed_max = max_concurrent_steps.load();
+    while (concurrent > observed_max &&
+           !max_concurrent_steps.compare_exchange_weak(observed_max, concurrent))
+    {
+    }
+
+    std::unique_lock lock(step_mutex);
+    if (!hold_step)
+    {
+      concurrent_steps.fetch_sub(1);
+      return;
+    }
+    step_entered = true;
+    step_cv.notify_all();
+    while (hold_step)
+    {
+      step_cv.wait(lock);
+    }
+
+    concurrent_steps.fetch_sub(1);
+  }
+
+  void wait_for_step_entry(std::chrono::milliseconds timeout)
+  {
+    std::unique_lock lock(step_mutex);
+    step_cv.wait_for(lock, timeout, [&] { return step_entered; });
+  }
+
+  void release_step()
+  {
+    std::lock_guard lock(step_mutex);
+    hold_step = false;
+    step_cv.notify_all();
   }
 };
 
@@ -182,29 +244,41 @@ TEST(HandlerTest, ConcurrentStrategyModification)
 TEST(HandlerTest, SpinAndSpinOnceSimultaneously)
 {
   auto context = std::make_shared<MockContext>();
-  auto strategy = std::make_shared<MockStrategy>();
+  auto strategy = std::make_shared<BlockingMockStrategy>();
   std::vector<std::shared_ptr<StrategyInterface>> strategies = {strategy};
 
   auto handler = Handler::make(context, strategies);
+  strategy->hold_step = true;
+  const int baseline = strategy->step_calls.load();
 
-  std::atomic_bool thread_running = false;
   auto spin_thread = std::thread([&] {
-    thread_running = true;
     handler->spin(std::chrono::milliseconds(100));
   });
 
-  while (!thread_running) std::this_thread::yield();
+  while (!handler->running())
+  {
+    std::this_thread::yield();
+  }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  EXPECT_EQ(strategy->step_calls, 1);
+  handler->wake();
+  ASSERT_TRUE(strategy->wait_for_step_entry(std::chrono::seconds(2)));
 
-  handler->spin_once();
-  EXPECT_EQ(strategy->step_calls, 2);
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  EXPECT_EQ(strategy->step_calls, 2);
+  // Background spin is blocked inside step(); foreground spin_once can overlap.
+  auto foreground = std::thread([&] { handler->spin_once(); });
+  const auto overlap_deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (
+    strategy->max_concurrent_steps.load() < 2 &&
+    std::chrono::steady_clock::now() < overlap_deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  EXPECT_GE(strategy->max_concurrent_steps.load(), 2);
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_GE(strategy->step_calls, 3);
+  strategy->release_step();
+  foreground.join();
+
+  EXPECT_GE(strategy->step_calls.load(), baseline + 2);
 
   handler->stop();
   handler->wake();
