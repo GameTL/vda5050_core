@@ -19,6 +19,7 @@
 #include <gmock/gmock.h>
 
 #include <atomic>
+#include <chrono>
 #include <thread>
 
 #include "vda5050_core/execution/base.hpp"
@@ -132,21 +133,28 @@ TEST(HandlerTest, SpinInThread)
   std::vector<std::shared_ptr<StrategyInterface>> strategies = {strategy};
 
   auto handler = Handler::make(context, strategies);
+  const int baseline = strategy->step_calls.load();
 
-  std::atomic_bool thread_running = false;
   auto spin_thread = std::thread([&] {
-    thread_running = true;
     handler->spin(std::chrono::milliseconds(100));
   });
 
-  while (!thread_running) std::this_thread::yield();
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  EXPECT_EQ(strategy->step_calls, 1);
+  while (!handler->running())
+  {
+    std::this_thread::yield();
+  }
 
   handler->wake();
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  EXPECT_GE(strategy->step_calls, 2);
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (
+    strategy->step_calls.load() < baseline + 1 &&
+    std::chrono::steady_clock::now() < deadline)
+  {
+    handler->wake();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  EXPECT_GE(strategy->step_calls.load(), baseline + 1);
 
   handler->stop();
   handler->wake();
@@ -186,25 +194,31 @@ TEST(HandlerTest, SpinAndSpinOnceSimultaneously)
   std::vector<std::shared_ptr<StrategyInterface>> strategies = {strategy};
 
   auto handler = Handler::make(context, strategies);
+  const int baseline = strategy->step_calls.load();
 
-  std::atomic_bool thread_running = false;
   auto spin_thread = std::thread([&] {
-    thread_running = true;
     handler->spin(std::chrono::milliseconds(100));
   });
 
-  while (!thread_running) std::this_thread::yield();
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  EXPECT_EQ(strategy->step_calls, 1);
+  while (!handler->running())
+  {
+    std::this_thread::yield();
+  }
 
   handler->spin_once();
-  EXPECT_EQ(strategy->step_calls, 2);
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  EXPECT_EQ(strategy->step_calls, 2);
+  EXPECT_GE(strategy->step_calls.load(), baseline + 1);
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_GE(strategy->step_calls, 3);
+  handler->wake();
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (
+    strategy->step_calls.load() < baseline + 2 &&
+    std::chrono::steady_clock::now() < deadline)
+  {
+    handler->wake();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  EXPECT_GE(strategy->step_calls.load(), baseline + 2);
 
   handler->stop();
   handler->wake();

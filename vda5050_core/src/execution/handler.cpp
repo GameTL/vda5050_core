@@ -62,6 +62,7 @@ void Handler::wake()
   if (!spinning_) return;
 
   std::lock_guard<std::mutex> lock(mutex_);
+  wake_pending_ = true;
   cv_.notify_all();
 }
 
@@ -74,7 +75,8 @@ void Handler::spin(std::chrono::milliseconds timeout)
   while (true)
   {
     std::unique_lock lock(mutex_);
-    cv_.wait_for(lock, timeout);
+    cv_.wait_for(lock, timeout, [&] { return !running_ || wake_pending_; });
+    wake_pending_ = false;
 
     if (!running_) break;
 
