@@ -83,6 +83,7 @@ private:
 
   std::condition_variable cv_;
   std::mutex mutex_;
+  bool wake_pending_{false};
 };
 
 }  // namespace execution

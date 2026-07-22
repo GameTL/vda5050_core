@@ -19,6 +19,7 @@
 #include <gmock/gmock.h>
 
 #include <atomic>
+#include <chrono>
 #include <thread>
 
 #include "vda5050_core/types/edge.hpp"
@@ -228,7 +229,12 @@ TEST_F(EngineTest, SuspendWithTimeoutNoPredicate)
   engine->step();
   EXPECT_TRUE(execution_log.empty());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (engine->waiting() && std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
 
   EXPECT_FALSE(engine->waiting());
 
@@ -247,7 +253,7 @@ TEST_F(EngineTest, SuspendWithTimeoutAndPredicate)
   engine->emit<MockNavigationCommand>(Priority::NORMAL, "node_delayed");
 
   engine->suspend_for<MockNavigationAcknowledgement>(
-    std::chrono::milliseconds(50),
+    std::chrono::seconds(5),
     [&](auto update) -> bool { return update->node_id == "node_previous"; });
 
   EXPECT_TRUE(engine->waiting());
@@ -255,8 +261,8 @@ TEST_F(EngineTest, SuspendWithTimeoutAndPredicate)
   engine->step();
   EXPECT_TRUE(execution_log.empty());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-
+  engine->notify(
+    std::make_shared<MockNavigationAcknowledgement>("wrong_node"));
   EXPECT_TRUE(engine->waiting());
 
   engine->notify(
