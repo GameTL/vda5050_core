@@ -31,5 +31,4 @@ __pycache__/
 *.dylib
 *.pyd
 uv.lock
-.github/scripts/install-native-deps.sh
 **tmp/
