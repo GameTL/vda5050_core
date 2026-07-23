@@ -21,6 +21,9 @@
 #include <pybind11/stl.h>
 #include <pybind11_json/pybind11_json.hpp>
 
+#include <memory>
+#include <string>
+
 #include "vda5050_core/client/adapter/state_manager.hpp"
 #include "vda5050_core/client/adapter/transformation.hpp"
 #include "vda5050_core/types/action_state.hpp"
@@ -39,6 +42,9 @@
 #include "vda5050_core/types/velocity.hpp"
 
 #include "rmf_migration.hpp"
+
+#define STRINGIFY(x) #x
+#define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 namespace py = pybind11;
 
@@ -75,9 +81,14 @@ using vda5050_core::types::OperatingMode;
 using vda5050_core::types::SafetyState;
 using vda5050_core::types::Velocity;
 
-PYBIND11_MODULE(vda5050_core_python, m)
+PYBIND11_MODULE(_core, m)
 {
   m.doc() = "VDA5050 Core Python bindings";
+#ifdef VERSION_INFO
+  m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
+#else
+  m.attr("__version__") = "dev";
+#endif
 
   auto m_client = m.def_submodule("client", "Native VDA5050 client API");
 
@@ -204,6 +215,7 @@ PYBIND11_MODULE(vda5050_core_python, m)
   py::class_<StateManager, std::shared_ptr<StateManager>>(
     m_client, "StateManager")
     .def("set_position", &StateManager::set_position)
+    .def("initialize_position", &StateManager::initialize_position)
     .def("set_velocity", &StateManager::set_velocity)
     .def("set_driving", &StateManager::set_driving)
     .def("set_paused", &StateManager::set_paused)

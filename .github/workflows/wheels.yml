@@ -1,0 +1,109 @@
+name: Wheels
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+    tags:
+      - 'v*.*.*'
+
+env:
+  FORCE_COLOR: 3
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_wheels:
+    name: Wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            macos_deployment_target: ""
+          - os: macos-14
+            macos_deployment_target: "14.0"
+          - os: macos-15
+            macos_deployment_target: "15.0"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: astral-sh/setup-uv@v5
+
+    - name: Install native dependencies on macOS
+      if: runner.os == 'macOS'
+      run: bash .github/scripts/install-native-deps.sh
+      env:
+        MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+
+    - uses: pypa/cibuildwheel@v2.23.3
+      with:
+        package-dir: vda5050_core/python
+        output-dir: wheelhouse
+      env:
+        CIBW_BUILD: cp312-*
+        CIBW_BUILD_FRONTEND: build[uv]
+        CIBW_BEFORE_ALL_LINUX: >
+          bash {project}/.github/scripts/install-native-deps.sh
+        CIBW_ENVIRONMENT_LINUX: >
+          CMAKE_PREFIX_PATH=/usr/local
+        CIBW_ENVIRONMENT_MACOS: >
+          MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_deployment_target }}
+        CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
+          LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+          auditwheel repair -w {dest_dir} {wheel}
+        CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+          DYLD_LIBRARY_PATH=$REPAIR_LIBRARY_PATH
+          delocate-wheel --require-archs {delocate_archs}
+          -w {dest_dir} -v {wheel}
+        CIBW_TEST_COMMAND: >
+          python -m pytest {package}/tests
+        CIBW_TEST_REQUIRES: pytest
+
+    - name: Verify clean directory
+      run: git diff --exit-code
+      shell: bash
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cibw-wheels-${{ matrix.os }}
+        path: wheelhouse/*.whl
+
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build_wheels]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(dist/*.whl)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No wheel artifacts found in dist/" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

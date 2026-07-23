@@ -17,3 +17,19 @@ tags/
 
 .agents
 CLAUDE.md
+
+# Python packaging
+dist/
+wheelhouse/
+_skbuild/
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.so
+*.dylib
+*.pyd
+uv.lock
+.github/scripts/install-native-deps.sh
+**tmp/

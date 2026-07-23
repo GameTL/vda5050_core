@@ -35,6 +35,24 @@ flowchart LR
 > This project is under active development. API stability is guaranteed across minor releases.
 
 
+## Python package (`vda5050`)
+
+Python bindings live under [`vda5050_core/python`](vda5050_core/python) and
+install as the `vda5050` package (pip / wheel).
+
+```bash
+# Native deps (Paho MQTT C++, fmt, nlohmann-json)
+bash .github/scripts/install-native-deps.sh
+
+cd vda5050_core/python
+pip install --verbose . --group test
+pytest
+```
+
+Tag pushes matching `v*.*.*` build wheels and attach them to a GitHub Release
+(see `.github/workflows/wheels.yml`). See
+[`vda5050_core/python/README.md`](vda5050_core/python/README.md) for details.
+
 ## Features
 
 - **Specification Compliant Data Structures:** Native C++17 representations for all VDA5050 message types.
