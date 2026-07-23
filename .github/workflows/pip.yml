@@ -1,0 +1,50 @@
+name: "Pip"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build:
+    name: Build with Pip
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-24.04, macos-latest]
+        python-version: ["3.12"]
+
+    defaults:
+      run:
+        working-directory: vda5050_core/python
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install native dependencies
+      working-directory: .
+      run: bash .github/scripts/install-native-deps.sh
+      env:
+        MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '14.0' || '' }}
+
+    - name: Build and install
+      env:
+        CMAKE_PREFIX_PATH: ${{ runner.os == 'macOS' && '/opt/homebrew' || '/usr/local' }}
+        MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '14.0' || '' }}
+      run: pip install --verbose . --group test
+
+    - name: Test
+      working-directory: ${{ runner.temp }}
+      env:
+        DYLD_LIBRARY_PATH: /opt/homebrew/lib:/opt/homebrew/opt/openssl@3/lib
+        LD_LIBRARY_PATH: /usr/local/lib:/usr/local/lib64
+      run: |
+        pytest "$GITHUB_WORKSPACE/vda5050_core/python/tests"

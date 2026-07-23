@@ -9,7 +9,14 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-find_package(ament_cmake REQUIRED)
+# Wheel / standalone builds (scikit-build) turn ament packaging off.
+option(VDA5050_CORE_ENABLE_AMENT "Enable ROS 2 ament packaging" ON)
+option(VDA5050_CORE_INSTALL "Install standalone vda5050_core development files" ON)
+
+if(VDA5050_CORE_ENABLE_AMENT)
+  find_package(ament_cmake REQUIRED)
+endif()
+
 find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -223,37 +230,41 @@ if(BUILD_PYTHON)
   add_subdirectory(python)
 endif()
 
-install(
-  DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
-)
+if(VDA5050_CORE_INSTALL)
+  install(
+    DIRECTORY include/${PROJECT_NAME}/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
+  )
 
-install(
-  TARGETS
-    vda5050_types
-    vda5050_json_utils
-    vda5050_logger
-    vda5050_errors
-    vda5050_validation
-    vda5050_transport
-    vda5050_execution
-    vda5050_client
-    vda5050_layout
-    vda5050_master
-  EXPORT export_${PROJECT_NAME}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+  install(
+    TARGETS
+      vda5050_types
+      vda5050_json_utils
+      vda5050_logger
+      vda5050_errors
+      vda5050_validation
+      vda5050_transport
+      vda5050_execution
+      vda5050_client
+      vda5050_layout
+      vda5050_master
+    EXPORT export_${PROJECT_NAME}
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+  )
+endif()
 
-ament_export_targets(export_${PROJECT_NAME}
-  HAS_LIBRARY_TARGET
-  NAMESPACE ${PROJECT_NAME}::
-)
-ament_export_dependencies(PahoMqttCpp fmt nlohmann_json)
+if(VDA5050_CORE_ENABLE_AMENT)
+  ament_export_targets(export_${PROJECT_NAME}
+    HAS_LIBRARY_TARGET
+    NAMESPACE ${PROJECT_NAME}::
+  )
+  ament_export_dependencies(PahoMqttCpp fmt nlohmann_json)
 
-if(ENABLE_ROS2)
-  ament_export_dependencies(vda5050_interfaces)
+  if(ENABLE_ROS2)
+    ament_export_dependencies(vda5050_interfaces)
+  endif()
 endif()
 
 option(BUILD_EXAMPLES "Build examples" ON)
@@ -264,7 +275,7 @@ endif()
 
 option(BUILD_TESTING "Build tests" ON)
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND VDA5050_CORE_ENABLE_AMENT)
   include(cmake/vda5050_ament_lint_common.cmake)
   vda5050_ament_lint_common()
 
@@ -390,13 +401,15 @@ if(BUILD_TESTING)
   target_link_libraries(test_master_actions vda5050_core::master)
 endif()
 
-# Install linter macro
-install(
-  FILES
-    cmake/vda5050_ament_lint_common.cmake
-  DESTINATION share/${PROJECT_NAME}/cmake
-)
+if(VDA5050_CORE_ENABLE_AMENT)
+  # Install linter macro
+  install(
+    FILES
+      cmake/vda5050_ament_lint_common.cmake
+    DESTINATION share/${PROJECT_NAME}/cmake
+  )
 
-ament_package(
-  CONFIG_EXTRAS "vda5050_core-extras.cmake"
-)
+  ament_package(
+    CONFIG_EXTRAS "vda5050_core-extras.cmake"
+  )
+endif()
