@@ -19,6 +19,7 @@
 #ifndef VDA5050_CORE__EXECUTION__HANDLER_HPP_
 #define VDA5050_CORE__EXECUTION__HANDLER_HPP_
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <memory>
