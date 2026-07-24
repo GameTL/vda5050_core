@@ -49,8 +49,8 @@ testpaths = ["tests"]
 [tool.cibuildwheel]
 build-frontend = "build[uv]"
 build = "cp312-*"
-test-command = "python -m pytest {package}/tests"
-test-sources = ["pyproject.toml", "tests"]
+test-command = "python -m pytest vda5050_core/python/tests"
+test-sources = ["vda5050_core/python/pyproject.toml", "vda5050_core/python/tests"]
 test-groups = ["test"]
 
 
