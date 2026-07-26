@@ -27,7 +27,7 @@ jobs:
     container:
       image: ros:${{ matrix.distro }}-ros-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           apt-get update -qq -y
