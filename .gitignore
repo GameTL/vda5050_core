@@ -17,7 +17,6 @@ tags/
 
 .agents
 CLAUDE.md
-tools/industrial-ci/
 
 # Python packaging
 dist/
