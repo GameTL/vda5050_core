@@ -12,11 +12,17 @@ jobs:
   build:
     name: Build with Pip
     runs-on: ${{ matrix.platform }}
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-24.04, macos-latest]
+        platform: [ubuntu-latest, macos-latest]
         python-version: ["3.10", "3.12"]
+        include:
+          - platform: ubuntu-latest
+            container: ubuntu:24.04
+          - platform: macos-latest
+            container: null
 
     defaults:
       run:

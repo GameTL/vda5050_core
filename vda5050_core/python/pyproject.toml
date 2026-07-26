@@ -7,16 +7,16 @@ build-backend = "scikit_build_core.build"
 name = "vda5050"
 version = "0.0.1"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
 description = "Python bindings for vda5050_core (client and RMF migration)"
 readme = "README.md"
 authors = [
   { name = "Game TL", email = "tinapatgl@a-star.edu.sg" },
 ]
-requires-python = "==3.12.*"
+requires-python = ">=3.10.*"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
