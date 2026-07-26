@@ -19,7 +19,7 @@ install_fmt_json_linux() {
   if command -v apt-get >/dev/null 2>&1; then
     run_root apt-get update
     run_root apt-get install -y --no-install-recommends \
-      build-essential cmake ninja-build pkg-config git \
+      ca-certificates build-essential cmake ninja-build pkg-config git \
       libssl-dev libfmt-dev nlohmann-json3-dev
   elif command -v dnf >/dev/null 2>&1; then
     run_root dnf install -y gcc-c++ cmake ninja-build pkgconfig git openssl-devel
