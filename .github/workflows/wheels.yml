@@ -39,7 +39,7 @@ jobs:
 
     - name: Install native dependencies on macOS
       if: runner.os == 'macOS'
-      run: bash .github/scripts/install-native-deps.sh
+      run: bash vda5050_core/python/scripts/install-native-deps.sh
       env:
         MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
 
@@ -51,7 +51,7 @@ jobs:
         CIBW_BUILD: cp312-*
         CIBW_BUILD_FRONTEND: build[uv]
         CIBW_BEFORE_ALL_LINUX: >
-          bash {project}/.github/scripts/install-native-deps.sh
+          bash {project}/vda5050_core/python/scripts/install-native-deps.sh
         CIBW_ENVIRONMENT_LINUX: >
           CMAKE_PREFIX_PATH=/usr/local
         CIBW_ENVIRONMENT_MACOS: >

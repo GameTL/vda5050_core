@@ -7,7 +7,7 @@ and import name are both `vda5050`.
 
 ```bash
 # Prerequisites: CMake, Ninja, Python 3.12, Paho MQTT C++, fmt, nlohmann-json
-bash .github/scripts/install-native-deps.sh   # from repo root
+bash vda5050_core/python/scripts/install-native-deps.sh   # from repo root
 
 cd vda5050_core/python
 # On macOS, prefer Apple Clang if Homebrew LLVM is on PATH:

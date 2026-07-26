@@ -42,7 +42,7 @@ install as the `vda5050` package (pip / wheel).
 
 ```bash
 # Native deps (Paho MQTT C++, fmt, nlohmann-json)
-bash .github/scripts/install-native-deps.sh
+bash vda5050_core/python/scripts/install-native-deps.sh
 
 cd vda5050_core/python
 pip install --verbose . --group test

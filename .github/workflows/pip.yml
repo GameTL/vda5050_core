@@ -31,7 +31,7 @@ jobs:
 
     - name: Install native dependencies
       working-directory: .
-      run: bash .github/scripts/install-native-deps.sh
+      run: bash vda5050_core/python/scripts/install-native-deps.sh
       env:
         MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '14.0' || '' }}
 
