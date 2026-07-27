@@ -9,7 +9,14 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-find_package(ament_cmake REQUIRED)
+# Wheel / standalone builds (scikit-build) turn ament packaging off.
+option(VDA5050_CORE_ENABLE_AMENT "Enable ROS 2 ament packaging" ON)
+option(VDA5050_CORE_INSTALL "Install standalone vda5050_core development files" ON)
+
+if(VDA5050_CORE_ENABLE_AMENT)
+  find_package(ament_cmake REQUIRED)
+endif()
+
 find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -95,18 +102,21 @@ target_include_directories(vda5050_errors
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-# Order Utils
-add_library(vda5050_order_utils SHARED src/order_utils/order_graph_validator.cpp)
+# Validation
+file(GLOB_RECURSE validation_srcs "src/validation/*.cpp")
+add_library(vda5050_validation SHARED ${validation_srcs})
 vda5050_configure_target_alias(
-  TARGET vda5050_order_utils
+  TARGET vda5050_validation
   NAMESPACE ${PROJECT_NAME}::
-  EXPORT_NAME order_utils
+  EXPORT_NAME validation
 )
-target_link_libraries(vda5050_order_utils PUBLIC
+target_link_libraries(vda5050_validation PUBLIC
   ${PROJECT_NAME}::types
   ${PROJECT_NAME}::errors
+  ${PROJECT_NAME}::layout
+  fmt::fmt
 )
-target_include_directories(vda5050_order_utils
+target_include_directories(vda5050_validation
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -150,6 +160,46 @@ target_include_directories(vda5050_execution
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+# Client
+file(GLOB_RECURSE client_srcs "src/client/*.cpp")
+add_library(vda5050_client SHARED ${client_srcs})
+vda5050_configure_target_alias(
+  TARGET vda5050_client
+  NAMESPACE ${PROJECT_NAME}::
+  EXPORT_NAME client
+)
+target_link_libraries(vda5050_client
+  PUBLIC
+    ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::types
+    ${PROJECT_NAME}::validation
+    ${PROJECT_NAME}::logger
+)
+target_include_directories(vda5050_client
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+# Layout (LIF) — neutral namespace; master depends on it
+file(GLOB_RECURSE layout_srcs "src/layout/*.cpp")
+add_library(vda5050_layout SHARED ${layout_srcs})
+vda5050_configure_target_alias(
+  TARGET vda5050_layout
+  NAMESPACE ${PROJECT_NAME}::
+  EXPORT_NAME layout
+)
+target_link_libraries(vda5050_layout
+  PUBLIC
+    ${PROJECT_NAME}::types
+    ${PROJECT_NAME}::json_utils
+)
+target_include_directories(vda5050_layout
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
 # Master
 file(GLOB_RECURSE master_srcs "src/master/*.cpp")
 add_library(vda5050_master SHARED ${master_srcs})
@@ -164,6 +214,9 @@ target_link_libraries(vda5050_master
     ${PROJECT_NAME}::json_utils
     ${PROJECT_NAME}::transport
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::validation
+    ${PROJECT_NAME}::errors
+    ${PROJECT_NAME}::layout
 )
 target_include_directories(vda5050_master
   PUBLIC
@@ -171,77 +224,58 @@ target_include_directories(vda5050_master
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+option(BUILD_PYTHON "Build Python bindings" ON)
 
-install(
-  DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
-)
+if(BUILD_PYTHON)
+  add_subdirectory(python)
+endif()
 
-install(
-  TARGETS
-    vda5050_types
-    vda5050_json_utils
-    vda5050_logger
-    vda5050_errors
-    vda5050_order_utils
-    vda5050_transport
-    vda5050_execution
-    vda5050_master
-  EXPORT export_${PROJECT_NAME}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+if(VDA5050_CORE_INSTALL)
+  install(
+    DIRECTORY include/${PROJECT_NAME}/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
+  )
 
-ament_export_targets(export_${PROJECT_NAME}
-  HAS_LIBRARY_TARGET
-  NAMESPACE ${PROJECT_NAME}::
-)
-ament_export_dependencies(PahoMqttCpp fmt nlohmann_json)
+  install(
+    TARGETS
+      vda5050_types
+      vda5050_json_utils
+      vda5050_logger
+      vda5050_errors
+      vda5050_validation
+      vda5050_transport
+      vda5050_execution
+      vda5050_client
+      vda5050_layout
+      vda5050_master
+    EXPORT export_${PROJECT_NAME}
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+  )
+endif()
 
-if(ENABLE_ROS2)
-  ament_export_dependencies(vda5050_interfaces)
+if(VDA5050_CORE_ENABLE_AMENT)
+  ament_export_targets(export_${PROJECT_NAME}
+    HAS_LIBRARY_TARGET
+    NAMESPACE ${PROJECT_NAME}::
+  )
+  ament_export_dependencies(PahoMqttCpp fmt nlohmann_json)
+
+  if(ENABLE_ROS2)
+    ament_export_dependencies(vda5050_interfaces)
+  endif()
 endif()
 
 option(BUILD_EXAMPLES "Build examples" ON)
 
 if(BUILD_EXAMPLES)
-  add_executable(custom_base examples/custom_base.cpp)
-  target_link_libraries(custom_base PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(provider_example examples/provider_example.cpp)
-  target_link_libraries(provider_example PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(engine_example examples/engine_example.cpp)
-  target_link_libraries(engine_example PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(handler_integration examples/handler_integration.cpp)
-  target_link_libraries(handler_integration PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  install(TARGETS
-      custom_base
-      provider_example
-      engine_example
-      handler_integration
-    DESTINATION lib/${PROJECT_NAME}
-  )
+  add_subdirectory(examples)
 endif()
 
 option(BUILD_TESTING "Build tests" ON)
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND VDA5050_CORE_ENABLE_AMENT)
   include(cmake/vda5050_ament_lint_common.cmake)
   vda5050_ament_lint_common()
 
@@ -253,10 +287,6 @@ if(BUILD_TESTING)
   endif()
   ament_add_gmock(test_json_utils ${json_tests})
   target_link_libraries(test_json_utils vda5050_core::json_utils)
-
-  ament_add_gmock(test_order_utils
-    test/order_utils/test_unit_order_graph_validator.cpp)
-  target_link_libraries(test_order_utils vda5050_core::order_utils)
 
   ament_add_gmock(test_logger
     test/logger/test_unit_default_logger.cpp
@@ -270,6 +300,26 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_transport vda5050_core::transport)
 
+  ament_add_gmock(test_client
+    test/client/test_order_types.cpp
+    test/client/test_order_execution_resource.cpp
+    test/client/test_agv_context.cpp
+    test/client/test_order_validator.cpp
+    test/client/test_order_acceptance.cpp
+    test/client/test_execution.cpp
+    test/client/test_transformation.cpp
+    test/client/test_state_manager.cpp
+    test/client/test_adapter_lifecycle.cpp
+    test/client/test_adapter_navigation.cpp
+    test/client/test_adapter_order.cpp
+    test/client/test_adapter_action.cpp
+    test/client/test_adapter_localization.cpp
+  )
+
+  target_link_libraries(test_client
+    vda5050_core::client
+  )
+
   ament_add_gmock(test_execution
     test/execution/test_engine.cpp
     test/execution/test_event_queue.cpp
@@ -279,23 +329,87 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_execution vda5050_core::execution)
 
-  ament_add_gmock(test_master
+  ament_add_gmock(test_master_comm
     test/master/test_integration_heartbeat.cpp
     test/master/test_integration_master_logic.cpp
     test/master/test_integration_master_mqtt.cpp
     test/master/test_integration_master_teardown.cpp
-    test/master/test_unit_agv.cpp
   )
-  target_link_libraries(test_master vda5050_core::master)
+  target_link_libraries(test_master_comm vda5050_core::master)
+
+  ament_add_gmock(test_master_integration
+    test/master/test_integration_master_assign_order.cpp
+    test/master/test_integration_master_assign_instant_actions.cpp
+    test/master/test_integration_master_mode_handling.cpp
+    test/master/test_integration_master_state_timeout.cpp
+    test/master/test_integration_master_broker_status.cpp
+    test/master/test_master_onboard_batch.cpp
+  )
+  target_link_libraries(test_master_integration vda5050_core::master)
+
+  ament_add_gmock(test_master_agv
+    test/master/test_unit_agv_connection_state.cpp
+    test/master/test_unit_agv_operational_state.cpp
+    test/master/test_unit_agv_lifecycle.cpp
+    test/master/test_unit_agv_order_lifecycle.cpp
+    test/master/test_unit_agv_pose_view.cpp
+  )
+  target_link_libraries(test_master_agv vda5050_core::master)
+
+  ament_add_gmock(test_master_context
+    test/master/test_unit_master_context.cpp
+  )
+  target_link_libraries(test_master_context vda5050_core::master)
+
+  ament_add_gmock(test_validation
+    test/validation/test_unit_content_validator.cpp
+    test/validation/test_unit_order_graph_validator.cpp
+    test/validation/test_unit_pre_send_validator.cpp
+    test/validation/test_unit_traversability_validator.cpp
+    test/validation/test_unit_capability_validator.cpp
+    test/validation/test_unit_protocol_limits_validator.cpp
+    test/validation/test_unit_action_conflict_validator.cpp
+    test/validation/test_unit_instant_action_mode_validator.cpp
+    test/validation/test_unit_factsheet_alignment.cpp
+  )
+  target_link_libraries(test_validation vda5050_core::validation)
+
+  ament_add_gmock(test_layout_loader
+    test/layout/test_unit_loader.cpp
+  )
+  target_link_libraries(test_layout_loader vda5050_core::layout)
+  target_compile_definitions(test_layout_loader PRIVATE
+    VDA5050_CORE__SAMPLE_LAYOUT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/layout/data/sample_layout.json")
+
+  ament_add_gmock(test_layout_graph
+    test/layout/test_unit_graph.cpp
+  )
+  target_link_libraries(test_layout_graph vda5050_core::layout)
+  target_compile_definitions(test_layout_graph PRIVATE
+    VDA5050_CORE__SAMPLE_LAYOUT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/layout/data/sample_layout.json")
+
+  ament_add_gmock(test_master_order
+    test/master/test_unit_order_publisher.cpp
+    test/master/test_unit_order_lifecycle_manager.cpp
+    test/master/test_unit_order_stitcher.cpp
+  )
+  target_link_libraries(test_master_order vda5050_core::master)
+
+  ament_add_gmock(test_master_actions
+    test/master/test_unit_action_factory.cpp
+  )
+  target_link_libraries(test_master_actions vda5050_core::master)
 endif()
 
-# Install linter macro
-install(
-  FILES
-    cmake/vda5050_ament_lint_common.cmake
-  DESTINATION share/${PROJECT_NAME}/cmake
-)
+if(VDA5050_CORE_ENABLE_AMENT)
+  # Install linter macro
+  install(
+    FILES
+      cmake/vda5050_ament_lint_common.cmake
+    DESTINATION share/${PROJECT_NAME}/cmake
+  )
 
-ament_package(
-  CONFIG_EXTRAS "vda5050_core-extras.cmake"
-)
+  ament_package(
+    CONFIG_EXTRAS "vda5050_core-extras.cmake"
+  )
+endif()

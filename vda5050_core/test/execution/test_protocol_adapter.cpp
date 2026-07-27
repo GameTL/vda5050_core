@@ -68,7 +68,8 @@ public:
     (override));
   MOCK_METHOD(void, unsubscribe, (const std::string&), (override));
   MOCK_METHOD(
-    void, set_will, (const std::string&, const std::string&, int), (override));
+    void, set_will, (const std::string&, const std::string&, int, bool),
+    (override));
 };
 
 template <typename T>
@@ -91,7 +92,7 @@ protected:
   void SetUp()
   {
     interface_ = "uagv";
-    version_ = "v2";
+    version_ = "2.0.0";
     manufacturer_ = "ROS-I";
     serial_number_ = "S001";
 
@@ -101,7 +102,8 @@ protected:
       mock_, interface_, version_, manufacturer_, serial_number_);
 
     topic_prefix_ = fmt::format(
-      "{}/{}/{}/{}/", interface_, version_, manufacturer_, serial_number_);
+      "{}/{}/{}/{}/", interface_, ProtocolAdapter::get_topic_version(version_),
+      manufacturer_, serial_number_);
 
     qos_ = 0;
     retained_ = false;
@@ -133,6 +135,24 @@ T make_valid_message()
 }
 
 TYPED_TEST_SUITE(ProtocolAdapterTest, MessageTypes);
+
+TYPED_TEST(ProtocolAdapterTest, Connect)
+{
+  EXPECT_CALL(*this->mock_, connect()).Times(1);
+  this->adapter_->connect();
+}
+
+TYPED_TEST(ProtocolAdapterTest, Disconnect)
+{
+  EXPECT_CALL(*this->mock_, disconnect()).Times(1);
+  this->adapter_->disconnect();
+}
+
+TYPED_TEST(ProtocolAdapterTest, Connected)
+{
+  EXPECT_CALL(*this->mock_, connected()).Times(1);
+  this->adapter_->connected();
+}
 
 TYPED_TEST(ProtocolAdapterTest, PublishMessage)
 {
@@ -246,4 +266,69 @@ TYPED_TEST(ProtocolAdapterTest, HeaderIncrement)
 
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
+}
+
+TYPED_TEST(ProtocolAdapterTest, SetWill)
+{
+  TypeParam msg = make_valid_message<TypeParam>();
+
+  EXPECT_CALL(
+    *this->mock_, set_will(
+                    testing::StartsWith(this->topic_prefix_), testing::_,
+                    this->qos_, this->retained_))
+    .WillOnce([&](
+                const std::string& /*topic*/, const std::string& message,
+                int /*qos*/, bool /*retained*/) {
+      auto j = nlohmann::json::parse(message);
+
+      EXPECT_EQ(j["headerId"], 0);
+      EXPECT_EQ(j["version"], this->version_);
+      EXPECT_EQ(j["manufacturer"], this->manufacturer_);
+      EXPECT_EQ(j["serialNumber"], this->serial_number_);
+    });
+
+  this->adapter_->template set_will<TypeParam>(
+    msg, this->qos_, this->retained_);
+}
+
+TYPED_TEST(ProtocolAdapterTest, UnsubscribeAllOnlyUnsubscribesActiveTopics)
+{
+  // Nothing subscribed — unsubscribe_all() must not touch mqtt_client_.
+  EXPECT_CALL(*this->mock_, unsubscribe(testing::_)).Times(0);
+
+  this->adapter_->unsubscribe_all();
+}
+
+TYPED_TEST(ProtocolAdapterTest, UnsubscribeAllSilencesActiveCallbacks)
+{
+  MqttClientInterface::MessageHandler captured_handler;
+
+  EXPECT_CALL(
+    *this->mock_,
+    subscribe(testing::StartsWith(this->topic_prefix_), testing::_, this->qos_))
+    .WillOnce(testing::SaveArg<1>(&captured_handler));
+
+  std::atomic_bool callback_invoked = false;
+  this->adapter_->template subscribe<TypeParam>(
+    [&](TypeParam /*msg*/, std::optional<Error> err) {
+      if (!err.has_value()) callback_invoked = true;
+    },
+    this->qos_);
+
+  // While subscribed, the captured wrapper should dispatch to the
+  // user callback.
+  TypeParam msg = make_valid_message<TypeParam>();
+  nlohmann::json j = msg;
+  captured_handler(this->topic_prefix_, j.dump());
+  EXPECT_TRUE(callback_invoked);
+
+  // After unsubscribe_all, the wrapper should be inert.
+  EXPECT_CALL(
+    *this->mock_, unsubscribe(testing::StartsWith(this->topic_prefix_)))
+    .Times(1);
+  this->adapter_->unsubscribe_all();
+
+  callback_invoked = false;
+  captured_handler(this->topic_prefix_, j.dump());
+  EXPECT_FALSE(callback_invoked);
 }

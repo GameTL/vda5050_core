@@ -1,0 +1,82 @@
+name: "Pip"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build:
+    name: Build with Pip
+    runs-on: ${{ matrix.platform }}
+    # PyTorch-style: steps run inside the image when set (no setup-python toolcache).
+    # https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.12"]
+        include:
+          - platform: ubuntu-latest
+            container: ubuntu:24.04
+          # Placeholder: Ubuntu 22.04 (Jammy). Uncomment to enable.
+          # - platform: ubuntu-latest
+          #   container: ubuntu:22.04
+          - platform: macos-latest
+            container: null
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: vda5050_core/python
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      if: matrix.container == null
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Python (container)
+      if: matrix.container != null
+      working-directory: .
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        apt-get update -qq
+        apt-get install -y -qq ca-certificates software-properties-common
+        ver="${{ matrix.python-version }}"
+        if ! apt-get install -y -qq "python${ver}" "python${ver}-venv" "python${ver}-dev"; then
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update -qq
+          apt-get install -y -qq "python${ver}" "python${ver}-venv" "python${ver}-dev"
+        fi
+        "python${ver}" -m venv "$RUNNER_TEMP/venv"
+        echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv/bin/python" -m pip install -U pip
+
+    - name: Install native dependencies
+      working-directory: .
+      run: bash vda5050_core/python/scripts/install-native-deps.sh
+      env:
+        MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '14.0' || '' }}
+
+    - name: Build and install
+      env:
+        CMAKE_PREFIX_PATH: ${{ runner.os == 'macOS' && '/opt/homebrew' || '/usr/local' }}
+        MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '14.0' || '' }}
+      run: python -m pip install --verbose . --group test
+
+    - name: Test
+      working-directory: ${{ runner.temp }}
+      env:
+        DYLD_LIBRARY_PATH: /opt/homebrew/lib:/opt/homebrew/opt/openssl@3/lib
+        LD_LIBRARY_PATH: /usr/local/lib:/usr/local/lib64
+      run: |
+        python -m pytest "$GITHUB_WORKSPACE/vda5050_core/python/tests"

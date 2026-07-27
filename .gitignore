@@ -9,4 +9,26 @@ compile_commands.json
 .cache/
 build/
 install/
+log/
+out/
 tags/
+
+.DS_Store
+
+.agents
+CLAUDE.md
+
+# Python packaging
+dist/
+wheelhouse/
+_skbuild/
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.so
+*.dylib
+*.pyd
+uv.lock
+**tmp/

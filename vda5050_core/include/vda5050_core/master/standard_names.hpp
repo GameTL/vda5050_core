@@ -20,9 +20,9 @@
 #define VDA5050_CORE__MASTER__STANDARD_NAMES_HPP_
 
 #include <string>
+#include <vector>
 
 namespace vda5050_core {
-
 namespace master {
 
 /// \brief MQTT QoS level — typed replacement for raw int values.
@@ -36,8 +36,8 @@ enum class QosLevel : int
   ExactlyOnce = 2,  ///< Two-phase handshake; rarely needed.
 };
 
-const std::string Version = "v2";                          // NOLINT
-const std::string InterfaceName = "rmf2";                  // NOLINT
+const std::string Version = "2.0.0";                       // NOLINT
+const std::string DefaultInterfaceName = "uagv";           // NOLINT
 const std::string ConnectionTopic = "connection";          // NOLINT
 const std::string FactsheetTopic = "factsheet";            // NOLINT
 const std::string OrderTopic = "order";                    // NOLINT
@@ -59,8 +59,19 @@ constexpr QosLevel StateQos = QosLevel::AtMostOnce;
 constexpr QosLevel VisualizationQos = QosLevel::AtMostOnce;
 constexpr QosLevel InstantActionsQos = QosLevel::AtMostOnce;
 
+/// \brief Spec connection-heartbeat window, in seconds.
+///
+/// Documentation-only: enforced by broker TCP keepalive + Paho auto-reconnect,
+/// not polled by the library; referenced by tests as the spec value.
 constexpr int ConnectionHeartbeatInterval = 15;  // seconds
 constexpr int StateHeartbeatInterval = 30;       // seconds
+
+/// \brief VDA5050 protocol versions accepted by SchemaValidator.
+///
+/// Master rejects (outgoing) or drops (incoming) any message whose
+/// header.version is not in this set. Currently 2.0.0 only; add a
+/// 2.1.0 entry when that migration lands.
+inline const std::vector<std::string> SupportedSchemaVersions = {"2.0.0"};
 
 }  // namespace master
 }  // namespace vda5050_core

@@ -39,6 +39,7 @@
 using vda5050_core::types::InstantActions;
 using vda5050_core::types::Order;
 
+using vda5050_core::master::DefaultInterfaceName;
 using vda5050_core::master::VDA5050Master;
 
 class MasterLogicTestFixture : public ::testing::Test
@@ -46,6 +47,7 @@ class MasterLogicTestFixture : public ::testing::Test
 protected:
   void SetUp() override
   {
+    interface_name_ = DefaultInterfaceName;
     manufacturer_ = "TestManufacturer";
     serial_number_ = "SN001";
     agv_id_ = manufacturer_ + "/" + serial_number_;
@@ -54,9 +56,9 @@ protected:
   std::shared_ptr<VDA5050Master> create_master()
   {
     std::string broker = "tcp://localhost:1883";
-    auto client = vda5050_core::transport::create_default_client(
+    auto client = vda5050_core::transport::create_default_client_shared(
       broker, "master_logic_test");
-    return std::make_shared<VDA5050Master>(client);
+    return VDA5050Master::make(client);
   }
 
   Order create_test_order(const std::string& order_id)
@@ -74,6 +76,7 @@ protected:
     return actions;
   }
 
+  std::string interface_name_;
   std::string manufacturer_;
   std::string serial_number_;
   std::string agv_id_;
@@ -87,6 +90,21 @@ TEST_F(MasterLogicTestFixture, OnboardAGVCreatesInstance)
   EXPECT_FALSE(master->is_agv_onboarded(manufacturer_, serial_number_));
 
   master->onboard_agv(manufacturer_, serial_number_);
+
+  EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
+
+  master->disconnect();
+}
+
+TEST_F(MasterLogicTestFixture, OnboardAGVCreatesInstanceCustomInterfaceName)
+{
+  std::string custom_interface_name = "amr";
+  auto master = create_master();
+  master->connect();
+
+  EXPECT_FALSE(master->is_agv_onboarded(manufacturer_, serial_number_));
+
+  master->onboard_agv(custom_interface_name, manufacturer_, serial_number_);
 
   EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
 
@@ -107,28 +125,25 @@ TEST_F(MasterLogicTestFixture, OffboardAGVRemovesInstance)
   master->disconnect();
 }
 
-TEST_F(MasterLogicTestFixture, PublishOrderToNotOnboardedAGVThrows)
+TEST_F(MasterLogicTestFixture, PublishOrderToNotOnboardedAGVReturnsFalse)
 {
   auto master = create_master();
   master->connect();
 
-  EXPECT_THROW(
-    master->publish_order(
-      manufacturer_, serial_number_, create_test_order("1")),
-    std::runtime_error);
+  EXPECT_FALSE(master->publish_order(
+    manufacturer_, serial_number_, create_test_order("1")));
 
   master->disconnect();
 }
 
-TEST_F(MasterLogicTestFixture, PublishInstantActionsToNotOnboardedAGVThrows)
+TEST_F(
+  MasterLogicTestFixture, PublishInstantActionsToNotOnboardedAGVReturnsFalse)
 {
   auto master = create_master();
   master->connect();
 
-  EXPECT_THROW(
-    master->publish_instant_actions(
-      manufacturer_, serial_number_, create_test_instant_actions(1)),
-    std::runtime_error);
+  EXPECT_FALSE(master->publish_instant_actions(
+    manufacturer_, serial_number_, create_test_instant_actions(1)));
 
   master->disconnect();
 }
@@ -180,7 +195,8 @@ TEST_F(MasterLogicTestFixture, GetAGVReturnsNullptrForNonOnboardedAGV)
   auto master = create_master();
   master->connect();
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   EXPECT_EQ(agv, nullptr);
 
   master->disconnect();
@@ -193,8 +209,10 @@ TEST_F(MasterLogicTestFixture, GetAGVReturnsValidAGVAfterOnboarding)
 
   master->onboard_agv(manufacturer_, serial_number_);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
+  EXPECT_EQ(agv->get_interface_name(), interface_name_);
   EXPECT_EQ(agv->get_manufacturer(), manufacturer_);
   EXPECT_EQ(agv->get_serial_number(), serial_number_);
   EXPECT_EQ(agv->get_agv_id(), agv_id_);
@@ -208,12 +226,14 @@ TEST_F(MasterLogicTestFixture, GetAGVReturnsNullptrAfterOffboarding)
   master->connect();
 
   master->onboard_agv(manufacturer_, serial_number_);
-  auto agv_before = master->get_agv(manufacturer_, serial_number_);
+  auto agv_before = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv_before, nullptr);
 
   master->offboard_agv(manufacturer_, serial_number_);
 
-  auto agv_after = master->get_agv(manufacturer_, serial_number_);
+  auto agv_after = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   EXPECT_EQ(agv_after, nullptr);
 
   master->disconnect();
@@ -228,7 +248,8 @@ TEST_F(MasterLogicTestFixture, ReOnboardingAfterOffboardingWorks)
   master->onboard_agv(manufacturer_, serial_number_);
   EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
 
-  auto agv1 = master->get_agv(manufacturer_, serial_number_);
+  auto agv1 = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv1, nullptr);
 
   // Offboard
@@ -239,7 +260,8 @@ TEST_F(MasterLogicTestFixture, ReOnboardingAfterOffboardingWorks)
   master->onboard_agv(manufacturer_, serial_number_);
   EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
 
-  auto agv2 = master->get_agv(manufacturer_, serial_number_);
+  auto agv2 = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv2, nullptr);
 
   // Should be a new instance (different pointer)
@@ -254,7 +276,8 @@ TEST_F(MasterLogicTestFixture, AGVQueuesOrders)
   master->connect();
   master->onboard_agv(manufacturer_, serial_number_);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Queue should work
@@ -270,7 +293,8 @@ TEST_F(MasterLogicTestFixture, AGVQueuesInstantActions)
   master->connect();
   master->onboard_agv(manufacturer_, serial_number_);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Queue should work
@@ -289,7 +313,8 @@ TEST_F(MasterLogicTestFixture, AGVDropOldestPolicyWorks)
   size_t queue_size = 2;
   master->onboard_agv(manufacturer_, serial_number_, queue_size, true);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Fill the queue
@@ -311,7 +336,8 @@ TEST_F(MasterLogicTestFixture, AGVDropNewestPolicyWorks)
   size_t queue_size = 2;
   master->onboard_agv(manufacturer_, serial_number_, queue_size, false);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Fill the queue
@@ -335,7 +361,8 @@ TEST_F(MasterLogicTestFixture, OnboardingWithCustomQueueSettings)
   master->onboard_agv(
     manufacturer_, serial_number_, custom_queue_size, drop_oldest);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Queue should accept up to custom_queue_size orders
@@ -401,7 +428,8 @@ TEST_F(MasterLogicTestFixture, DestructorCompletesWithPendingMessages)
     master->connect();
     master->onboard_agv(manufacturer_, serial_number_);
 
-    auto agv = master->get_agv(manufacturer_, serial_number_);
+    auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+      master->get_agv(manufacturer_, serial_number_));
     ASSERT_NE(agv, nullptr);
 
     // Queue many messages
@@ -426,7 +454,8 @@ TEST_F(MasterLogicTestFixture, OffboardWithPendingMessages)
   master->connect();
   master->onboard_agv(manufacturer_, serial_number_);
 
-  auto agv = master->get_agv(manufacturer_, serial_number_);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master->get_agv(manufacturer_, serial_number_));
   ASSERT_NE(agv, nullptr);
 
   // Queue some messages
