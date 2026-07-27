@@ -5,6 +5,7 @@ set -euo pipefail
 PAHO_CPP_TAG="${PAHO_CPP_TAG:-v1.6.0}"
 FMT_TAG="${FMT_TAG:-11.2.0}"
 NLOHMANN_JSON_TAG="${NLOHMANN_JSON_TAG:-v3.11.3}"
+PYBIND11_TAG="${PYBIND11_TAG:-v2.13.6}"
 PYBIND11_JSON_TAG="${PYBIND11_JSON_TAG:-0.2.13}"
 PREFIX="${CMAKE_INSTALL_PREFIX:-/usr/local}"
 
@@ -36,18 +37,23 @@ install_fmt_json_linux() {
     # search path); pybind11_json source install can find_package(pybind11).
     install_pybind11_json
   elif command -v dnf >/dev/null 2>&1; then
+    # manylinux / AlmaLinux: no pybind11-devel; install headers from source
+    # so pybind11_json's find_package(pybind11) succeeds in CIBW_BEFORE_ALL.
     run_root dnf install -y gcc-c++ cmake ninja-build pkgconfig git openssl-devel
     install_fmt_json_from_source
+    install_pybind11_from_source
     install_pybind11_json
   elif command -v yum >/dev/null 2>&1; then
     run_root yum install -y gcc-c++ cmake ninja-build pkgconfig git openssl-devel
     install_fmt_json_from_source
+    install_pybind11_from_source
     install_pybind11_json
   elif command -v apk >/dev/null 2>&1; then
     # musllinux / Alpine images
     run_root apk add --no-cache \
       build-base cmake ninja pkgconf git openssl-dev linux-headers
     install_fmt_json_from_source
+    install_pybind11_from_source
     install_pybind11_json
   else
     echo "Unsupported Linux package manager" >&2
@@ -76,6 +82,26 @@ install_fmt_json_from_source() {
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DJSON_BuildTests=OFF
   install_to_prefix cmake --install "$work/json/build"
+
+  rm -rf "$work"
+}
+
+# Header-only pybind11 CMake package for hosts without a distro package
+# (manylinux). PYBIND11_NOPYTHON avoids baking the container interpreter;
+# the wheel build still gets pybind11 from the build-system requires.
+install_pybind11_from_source() {
+  local work
+  work="$(mktemp -d)"
+
+  git clone --depth 1 --branch "$PYBIND11_TAG" \
+    https://github.com/pybind/pybind11.git "$work/pybind11"
+  cmake -S "$work/pybind11" -B "$work/pybind11/build" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DPYBIND11_TEST=OFF \
+    -DPYBIND11_NOPYTHON=ON
+  cmake --build "$work/pybind11/build" --parallel
+  install_to_prefix cmake --install "$work/pybind11/build"
 
   rm -rf "$work"
 }
