@@ -14,6 +14,7 @@ if(SKBUILD)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
   find_package(pybind11 CONFIG REQUIRED)
+  find_package(pybind11_json CONFIG REQUIRED)
 
   # Build the C++ core as part of the wheel; do not recurse into this
   # directory again and do not install development files into the wheel.
@@ -38,6 +39,7 @@ if(SKBUILD)
 
   target_link_libraries(_core PRIVATE
     pybind11::headers
+    pybind11_json::pybind11_json
     vda5050_core::client
     vda5050_core::execution
     vda5050_core::transport
