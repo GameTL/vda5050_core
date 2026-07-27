@@ -5,6 +5,7 @@ set -euo pipefail
 PAHO_CPP_TAG="${PAHO_CPP_TAG:-v1.6.0}"
 FMT_TAG="${FMT_TAG:-11.2.0}"
 NLOHMANN_JSON_TAG="${NLOHMANN_JSON_TAG:-v3.11.3}"
+PYBIND11_JSON_TAG="${PYBIND11_JSON_TAG:-0.2.13}"
 PREFIX="${CMAKE_INSTALL_PREFIX:-/usr/local}"
 
 run_root() {
@@ -20,18 +21,24 @@ install_fmt_json_linux() {
     run_root apt-get update
     run_root apt-get install -y --no-install-recommends \
       ca-certificates build-essential cmake ninja-build pkg-config git \
-      libssl-dev libfmt-dev nlohmann-json3-dev
+      libssl-dev libfmt-dev nlohmann-json3-dev pybind11-dev
+    # pybind11-dev ships cmake config under /usr/lib/cmake/pybind11 (default
+    # search path); pybind11_json source install can find_package(pybind11).
+    install_pybind11_json
   elif command -v dnf >/dev/null 2>&1; then
     run_root dnf install -y gcc-c++ cmake ninja-build pkgconfig git openssl-devel
     install_fmt_json_from_source
+    install_pybind11_json
   elif command -v yum >/dev/null 2>&1; then
     run_root yum install -y gcc-c++ cmake ninja-build pkgconfig git openssl-devel
     install_fmt_json_from_source
+    install_pybind11_json
   elif command -v apk >/dev/null 2>&1; then
     # musllinux / Alpine images
     run_root apk add --no-cache \
       build-base cmake ninja pkgconf git openssl-dev linux-headers
     install_fmt_json_from_source
+    install_pybind11_json
   else
     echo "Unsupported Linux package manager" >&2
     exit 1
@@ -63,6 +70,26 @@ install_fmt_json_from_source() {
   rm -rf "$work"
 }
 
+# pybind11_json: header-only bridge between nlohmann::json and pybind11.
+# Not on PyPI/Homebrew; install from source so the SKBUILD wheel build
+# can find_package(pybind11_json). Requires pybind11's CMake config
+# discoverable via CMAKE_PREFIX_PATH or system paths.
+install_pybind11_json() {
+  local work
+  work="$(mktemp -d)"
+
+  git clone --depth 1 --branch "$PYBIND11_JSON_TAG" \
+    https://github.com/pybind/pybind11_json.git "$work/pb11j"
+  cmake -S "$work/pb11j" -B "$work/pb11j/build" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_PREFIX_PATH="${PREFIX}:${CMAKE_PREFIX_PATH}"
+  cmake --build "$work/pb11j/build" --parallel
+  run_root cmake --install "$work/pb11j/build"
+
+  rm -rf "$work"
+}
+
 # Paho is built from source with PAHO_WITH_MQTT_C=ON into PREFIX.
 # A second copy of the same dylib basename (Homebrew formula, leftover
 # /usr/local install, etc.) makes delocate fail with:
@@ -90,12 +117,14 @@ ensure_single_macos_paho_prefix() {
 }
 
 install_fmt_json_macos() {
-  brew install cmake ninja fmt nlohmann-json openssl@3
+  brew install cmake ninja fmt nlohmann-json openssl@3 pybind11
 
   PREFIX="${CMAKE_INSTALL_PREFIX:-$(brew --prefix)}"
   ensure_single_macos_paho_prefix "$PREFIX"
   export CMAKE_PREFIX_PATH="$PREFIX"
   export REPAIR_LIBRARY_PATH="$PREFIX/lib:$(brew --prefix openssl@3)/lib"
+
+  install_pybind11_json
 
   if [[ -n "${GITHUB_ENV:-}" ]]; then
     echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
