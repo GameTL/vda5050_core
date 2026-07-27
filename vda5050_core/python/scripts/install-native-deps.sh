@@ -16,6 +16,16 @@ run_root() {
   fi
 }
 
+# cmake --install into PREFIX: skip sudo when PREFIX is already writable
+# (Homebrew prefix, user prefix). Package managers still use run_root.
+install_to_prefix() {
+  if [[ "$(id -u)" -eq 0 ]] || [[ -w "$PREFIX" ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 install_fmt_json_linux() {
   if command -v apt-get >/dev/null 2>&1; then
     run_root apt-get update
@@ -57,7 +67,7 @@ install_fmt_json_from_source() {
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DFMT_TEST=OFF
   cmake --build "$work/fmt/build" --parallel
-  run_root cmake --install "$work/fmt/build"
+  install_to_prefix cmake --install "$work/fmt/build"
 
   git clone --depth 1 --branch "$NLOHMANN_JSON_TAG" \
     https://github.com/nlohmann/json.git "$work/json"
@@ -65,7 +75,7 @@ install_fmt_json_from_source() {
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DJSON_BuildTests=OFF
-  run_root cmake --install "$work/json/build"
+  install_to_prefix cmake --install "$work/json/build"
 
   rm -rf "$work"
 }
@@ -80,12 +90,18 @@ install_pybind11_json() {
 
   git clone --depth 1 --branch "$PYBIND11_JSON_TAG" \
     https://github.com/pybind/pybind11_json.git "$work/pb11j"
+  # pybind11_json 0.2.13 still declares cmake_minimum_required(< 3.5);
+  # CMake 4+ rejects that unless CMAKE_POLICY_VERSION_MINIMUM is set.
+  # Empty PYTHON_INCLUDE_DIRS so the INTERFACE target does not bake the
+  # host interpreter's include path (wheel builds use a different Python).
   cmake -S "$work/pb11j" -B "$work/pb11j/build" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-    -DCMAKE_PREFIX_PATH="${PREFIX}:${CMAKE_PREFIX_PATH}"
+    -DCMAKE_PREFIX_PATH="${PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DPYTHON_INCLUDE_DIRS=
   cmake --build "$work/pb11j/build" --parallel
-  run_root cmake --install "$work/pb11j/build"
+  install_to_prefix cmake --install "$work/pb11j/build"
 
   rm -rf "$work"
 }
@@ -151,7 +167,7 @@ install_paho() {
     -DPAHO_WITH_SSL=ON
 
   cmake --build "$work/paho.mqtt.cpp/build" --parallel
-  run_root cmake --install "$work/paho.mqtt.cpp/build"
+  install_to_prefix cmake --install "$work/paho.mqtt.cpp/build"
 }
 
 case "$(uname -s)" in

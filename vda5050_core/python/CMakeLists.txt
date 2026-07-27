@@ -15,6 +15,10 @@ if(SKBUILD)
 
   find_package(pybind11 CONFIG REQUIRED)
   find_package(pybind11_json CONFIG REQUIRED)
+  # pybind11_json 0.2.x exports plain target `pybind11_json`, not a namespace.
+  if(TARGET pybind11_json AND NOT TARGET pybind11_json::pybind11_json)
+    add_library(pybind11_json::pybind11_json ALIAS pybind11_json)
+  endif()
 
   # Build the C++ core as part of the wheel; do not recurse into this
   # directory again and do not install development files into the wheel.
